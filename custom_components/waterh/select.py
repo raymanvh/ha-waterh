@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DRINK_TYPES
+from .const import CONF_VOLUME_UNIT, DRINK_TYPES, UNIT_AUTO, VOLUME_UNITS
 from .coordinator import WaterHConfigEntry, WaterHCoordinator
 from .entity import waterh_device_info
 
@@ -19,7 +20,12 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the drink type select."""
-    async_add_entities([WaterHQuickTypeSelect(entry.runtime_data)])
+    async_add_entities(
+        [
+            WaterHQuickTypeSelect(entry.runtime_data),
+            WaterHVolumeUnitSelect(entry.runtime_data, entry),
+        ]
+    )
 
 
 class WaterHQuickTypeSelect(CoordinatorEntity[WaterHCoordinator], SelectEntity, RestoreEntity):
@@ -51,3 +57,34 @@ class WaterHQuickTypeSelect(CoordinatorEntity[WaterHCoordinator], SelectEntity, 
         self._attr_current_option = option
         self.coordinator.quick_drink_type = option
         self.async_write_ha_state()
+
+
+class WaterHVolumeUnitSelect(CoordinatorEntity[WaterHCoordinator], SelectEntity):
+    """Volume unit option, mirrored from the integration options.
+
+    Changing it updates the config entry options, which reloads the
+    integration so every entity switches unit.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "volume_unit"
+    _attr_options = VOLUME_UNITS
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:scale-balance"
+
+    def __init__(self, coordinator: WaterHCoordinator, entry: WaterHConfigEntry) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_unique_id = f"{coordinator.user_id}_volume_unit"
+        self._attr_device_info = waterh_device_info(coordinator)
+
+    @property
+    def current_option(self) -> str | None:
+        return self._entry.options.get(CONF_VOLUME_UNIT, UNIT_AUTO)
+
+    async def async_select_option(self, option: str) -> None:
+        if option == self.current_option:
+            return
+        self.hass.config_entries.async_update_entry(
+            self._entry, options={**self._entry.options, CONF_VOLUME_UNIT: option}
+        )

@@ -32,6 +32,7 @@ Plus these controls:
 | **Drink amount** | How much **Log drink** adds (default 8 fl. oz. / 250 mL). Kept in Home Assistant only. |
 | **Drink type** | Water, coffee, tea or juice, for **Log drink**. Kept in Home Assistant only. |
 | **Log drink** | Adds a manual drink with the amount and type above, like the **+** button in the app. |
+| **Volume unit** (Configuration) | Automatic, Same as the WaterH app, mL or fl. oz. The same setting as in the integration options; switching it reloads the integration. |
 
 "Water today" uses WaterH's `water_amount` (hydration value). For plain water it equals the liquid volume. For other drink types the app may weight it differently; the raw volume is in `liquid_total_ml`.
 
@@ -59,7 +60,7 @@ Copy `custom_components/waterh` into your Home Assistant `config/custom_componen
 
 ### Options
 
-- **Volume unit**: how volumes are shown and the default unit for `log_drink`.
+- **Volume unit** (also on the device page): how volumes are shown and the default unit for `log_drink`. It applies to every WaterH volume entity, overriding any per-entity unit you set.
   - *Automatic*: follows Home Assistant's unit system (fl. oz. for US customary, mL for metric).
   - *Same as the WaterH app*: follows the unit set in the WaterH app.
   - *Milliliters* or *Fluid ounces*: always that unit.

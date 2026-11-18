@@ -80,6 +80,15 @@
           "tea": "Tea",
           "juice": "Juice"
         }
+      },
+      "volume_unit": {
+        "name": "Volume unit",
+        "state": {
+          "auto": "Automatic (Home Assistant unit system)",
+          "app": "Same as the WaterH app",
+          "ml": "Milliliters (mL)",
+          "oz": "Fluid ounces (fl. oz.)"
+        }
       }
     },
     "button": {

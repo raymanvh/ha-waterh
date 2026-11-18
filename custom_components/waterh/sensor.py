@@ -161,14 +161,10 @@ class WaterHSensor(CoordinatorEntity[WaterHCoordinator], SensorEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        # An explicit mL / fl. oz. choice in the integration options also
-        # applies to entities that already exist (suggested units only apply
-        # when an entity is first created).
-        if (
-            not self.entity_description.volume
-            or self._unit_option == UNIT_AUTO
-            or self.registry_entry is None
-        ):
+        # The Volume unit option governs every volume entity, including ones
+        # that already exist (suggested units only apply when an entity is
+        # first created), so switching back to Automatic also takes effect.
+        if not self.entity_description.volume or self.registry_entry is None:
             return
         unit = ha_unit(self._resolved_unit())
         current = dict(self.registry_entry.options.get("sensor", {}))

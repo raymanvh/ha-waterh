@@ -362,3 +362,39 @@ async def test_log_drink_button(
     entry = post[0][2]["data"][0]
     assert entry["amount"] == 355  # 12 fl. oz.
     assert entry["water_type"] == "coffee"
+
+
+async def test_volume_unit_select_switches_units(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    entry = await _setup(hass, aioclient_mock, options={"volume_unit": "ml", "scan_interval": 5})
+    select = "select.waterh_test_user_volume_unit"
+    assert hass.states.get(select).state == "ml"
+    goal = "number.waterh_test_user_daily_goal"
+    assert hass.states.get(goal).attributes["unit_of_measurement"] == "mL"
+
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": select, "option": "oz"}, blocking=True
+    )
+    await hass.async_block_till_done()
+
+    assert entry.options["volume_unit"] == "oz"
+    assert entry.options["scan_interval"] == 5
+    assert hass.states.get(select).state == "oz"
+    assert hass.states.get(goal).attributes["unit_of_measurement"] == "fl. oz."
+    today = hass.states.get("sensor.waterh_test_user_water_today")
+    assert today.attributes["unit_of_measurement"] == "fl. oz."
+
+
+async def test_volume_unit_back_to_auto(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Switching oz -> automatic (metric HA) returns sensors to mL."""
+    await _setup(hass, aioclient_mock, options={"volume_unit": "oz", "scan_interval": 5})
+    select = "select.waterh_test_user_volume_unit"
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": select, "option": "auto"}, blocking=True
+    )
+    await hass.async_block_till_done()
+    today = hass.states.get("sensor.waterh_test_user_water_today")
+    assert today.attributes["unit_of_measurement"] == "mL"
