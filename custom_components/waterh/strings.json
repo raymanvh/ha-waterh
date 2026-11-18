@@ -1,0 +1,158 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sign in to WaterH",
+        "description": "Use the email and password for your WaterH app account. If you signed up with Google or Facebook, set a password first with \"Forgot password\" in the WaterH app. Your password is only used to get a login token and is not stored.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Sign in to WaterH again",
+        "description": "WaterH no longer accepts the saved login for {email}. Enter your password to sign in again.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Wrong email or password.",
+      "cannot_connect": "Could not reach the WaterH servers.",
+      "unknown": "Unexpected error. Check the logs."
+    },
+    "abort": {
+      "already_configured": "This WaterH account is already set up.",
+      "reauth_successful": "Signed in again.",
+      "wrong_account": "That login belongs to a different WaterH account."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "WaterH options",
+        "description": "Choose how volumes are shown: follow Home Assistant's unit system, follow the unit set in the WaterH app, or pick mL or fl. oz. Leave the client ID and secret empty to use the built-in values; only fill them in if WaterH changes the values in their app (see the README).",
+        "data": {
+          "volume_unit": "Volume unit",
+          "scan_interval": "Update interval",
+          "client_id": "OAuth client ID (advanced)",
+          "client_secret": "OAuth client secret (advanced)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "water_today": {
+        "name": "Water today"
+      },
+      "goal_progress": {
+        "name": "Goal progress"
+      },
+      "drinks_today": {
+        "name": "Drinks today"
+      },
+      "last_drink_amount": {
+        "name": "Last drink"
+      },
+      "last_drink_time": {
+        "name": "Last drink time"
+      },
+      "last_water_temperature": {
+        "name": "Last water temperature"
+      }
+    },
+    "number": {
+      "daily_goal": {
+        "name": "Daily goal"
+      }
+    }
+  },
+  "selector": {
+    "volume_unit": {
+      "options": {
+        "auto": "Automatic (Home Assistant unit system)",
+        "app": "Same as the WaterH app",
+        "ml": "Milliliters (mL)",
+        "oz": "Fluid ounces (fl. oz.)"
+      }
+    },
+    "unit": {
+      "options": {
+        "ml": "Milliliters (mL)",
+        "oz": "Fluid ounces (fl. oz.)"
+      }
+    },
+    "drink_type": {
+      "options": {
+        "water": "Water",
+        "coffee": "Coffee",
+        "tea": "Tea",
+        "juice": "Juice"
+      }
+    }
+  },
+  "services": {
+    "log_drink": {
+      "name": "Log drink",
+      "description": "Adds a manual drink to your WaterH log, like the + button in the WaterH app.",
+      "fields": {
+        "config_entry_id": {
+          "name": "WaterH account",
+          "description": "Only needed if you have more than one WaterH account set up."
+        },
+        "amount": {
+          "name": "Amount",
+          "description": "How much you drank."
+        },
+        "unit": {
+          "name": "Unit",
+          "description": "Unit of the amount. Defaults to the unit chosen in the integration options."
+        },
+        "drink_type": {
+          "name": "Drink type",
+          "description": "What you drank."
+        },
+        "time": {
+          "name": "Time",
+          "description": "When you drank it. Defaults to now."
+        }
+      }
+    },
+    "delete_drink": {
+      "name": "Delete drink",
+      "description": "Removes an entry from your WaterH log. The ID of the most recent drink is the drink_id attribute of the Last drink sensor.",
+      "fields": {
+        "config_entry_id": {
+          "name": "WaterH account",
+          "description": "Only needed if you have more than one WaterH account set up."
+        },
+        "drink_id": {
+          "name": "Drink ID",
+          "description": "ID of the log entry to remove."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "no_entry": {
+      "message": "No loaded WaterH account found."
+    },
+    "multiple_entries": {
+      "message": "More than one WaterH account is set up; choose one with config_entry_id."
+    },
+    "invalid_amount": {
+      "message": "Amount must be between 1 mL and 10,000 mL (got {amount_ml} mL)."
+    },
+    "log_drink_failed": {
+      "message": "WaterH didn't accept the drink: {error}"
+    },
+    "delete_drink_failed": {
+      "message": "WaterH couldn't delete the drink: {error}"
+    },
+    "set_goal_failed": {
+      "message": "WaterH didn't accept the new goal: {error}"
+    }
+  }
+}

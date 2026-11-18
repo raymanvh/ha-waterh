@@ -1,0 +1,13 @@
+{
+  "domain": "waterh",
+  "name": "WaterH",
+  "codeowners": ["@raymanvh"],
+  "config_flow": true,
+  "documentation": "https://github.com/raymanvh/ha-waterh",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/raymanvh/ha-waterh/issues",
+  "loggers": ["custom_components.waterh"],
+  "requirements": [],
+  "version": "0.1.0"
+}

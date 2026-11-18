@@ -1,0 +1,47 @@
+log_drink:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: waterh
+    amount:
+      required: true
+      example: 8
+      selector:
+        number:
+          min: 0.1
+          max: 10000
+          step: 0.1
+          mode: box
+    unit:
+      selector:
+        select:
+          options:
+            - ml
+            - oz
+          translation_key: unit
+    drink_type:
+      default: water
+      selector:
+        select:
+          options:
+            - water
+            - coffee
+            - tea
+            - juice
+          translation_key: drink_type
+    time:
+      selector:
+        datetime:
+
+delete_drink:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: waterh
+    drink_id:
+      required: true
+      example: "132700001"
+      selector:
+        text:
