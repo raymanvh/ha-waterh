@@ -1,5 +1,7 @@
 # WaterH for Home Assistant
 
+<img src="custom_components/waterh/brand/icon.png" alt="" width="96" align="right">
+
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
 [![Validate](https://github.com/raymanvh/ha-waterh/actions/workflows/validate.yml/badge.svg)](https://github.com/raymanvh/ha-waterh/actions/workflows/validate.yml)
 
@@ -41,6 +43,10 @@ Data updates every 5 minutes by default (adjustable from 1 to 60 minutes). The b
 ## Installation
 
 ### HACS (recommended)
+
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=raymanvh&repository=ha-waterh&category=integration)
+
+Click the button above, then **Download** and restart Home Assistant. Or add it by hand:
 
 1. In HACS, open the menu (⋮) → **Custom repositories**.
 2. Add `https://github.com/raymanvh/ha-waterh` with category **Integration**.
