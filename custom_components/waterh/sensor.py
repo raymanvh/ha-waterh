@@ -13,7 +13,12 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import PERCENTAGE, UnitOfTemperature, UnitOfVolume
+from homeassistant.const import (
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfTemperature,
+    UnitOfVolume,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -114,6 +119,13 @@ SENSORS: tuple[WaterHSensorDescription, ...] = (
         value_fn=lambda d: (
             d.last_bottle_drink.temperature if d.last_bottle_drink else None
         ),
+    ),
+    WaterHSensorDescription(
+        key="last_update",
+        translation_key="last_update",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d: d.fetched_at,
     ),
 )
 

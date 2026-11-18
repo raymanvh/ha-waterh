@@ -39,6 +39,7 @@ class WaterHData:
     goal_ml: int | None = None
     profile: dict[str, Any] = field(default_factory=dict)
     day_start: datetime | None = None
+    fetched_at: datetime | None = None
 
     @property
     def total_ml(self) -> int:
@@ -126,4 +127,5 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
             goal_ml=int(goal) if isinstance(goal, (int, float)) and goal > 0 else None,
             profile=profile,
             day_start=day_start,
+            fetched_at=dt_util.utcnow(),
         )

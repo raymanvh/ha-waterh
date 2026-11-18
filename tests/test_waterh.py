@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from freezegun.api import FrozenDateTimeFactory
@@ -149,6 +149,17 @@ async def test_sensors(
 
     last_time = hass.states.get("sensor.waterh_test_user_last_drink_time")
     assert last_time.state == "2026-11-18T00:22:40+00:00"
+
+    # Diagnostic "Last update" records each successful fetch, even when
+    # nothing else changed.
+    last_update = hass.states.get("sensor.waterh_test_user_last_update")
+    assert last_update.state == "2026-11-18T00:45:00+00:00"
+    freezer.tick(timedelta(minutes=5))
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    last_update = hass.states.get("sensor.waterh_test_user_last_update")
+    assert last_update.state == "2026-11-18T00:50:00+00:00"
+    assert hass.states.get("sensor.waterh_test_user_drinks_today").state == "4"
 
 
 async def test_expired_token_is_refreshed(

@@ -25,6 +25,7 @@ One device per WaterH account, with these sensors:
 | **Last drink** | Size of the most recent drink. Attributes: `drink_id`, `source` (`manual` or the bottle model), `water_type`, `liquid_amount_ml`, `temperature`. |
 | **Last drink time** | Timestamp of the most recent drink. |
 | **Last water temperature** | Water temperature reported by the bottle (°C, disabled by default). |
+| **Last update** | When Home Assistant last fetched data from WaterH (diagnostic). If this keeps advancing but a drink is missing, the phone hasn't uploaded it yet. |
 
 Plus these controls:
 
