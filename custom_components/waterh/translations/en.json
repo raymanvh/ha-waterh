@@ -32,7 +32,7 @@
     "step": {
       "init": {
         "title": "WaterH options",
-        "description": "Choose how volumes are shown: follow Home Assistant's unit system, follow the unit set in the WaterH app, or pick mL or fl. oz. Leave the client ID and secret empty to use the built-in values; only fill them in if WaterH changes the values in their app (see the README).",
+        "description": "Choose how volumes are shown: follow Home Assistant's unit system, follow the unit set in the WaterH app, or pick mL or fl. oz. Leave the client ID and secret empty to use the built-in values; only fill them in if WaterH changes the values in their app (see the README).\n\n**WaterH Sync Android app (optional):** to get bottle battery and charging sensors, paste this URL into the app under Settings → Home Assistant. Keep it private; anyone with it can report bottle status.\n\n{webhook_url}",
         "data": {
           "volume_unit": "Volume unit",
           "scan_interval": "Update interval",
@@ -64,6 +64,15 @@
       },
       "last_update": {
         "name": "Last update"
+      },
+      "bottle_battery": {
+        "name": "Bottle battery"
+      },
+      "bottle_firmware": {
+        "name": "Bottle firmware"
+      },
+      "bottle_reported": {
+        "name": "Last app report"
       }
     },
     "number": {
@@ -97,6 +106,11 @@
     "button": {
       "log_drink": {
         "name": "Log drink"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "Bottle charging"
       }
     }
   },

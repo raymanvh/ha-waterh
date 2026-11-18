@@ -51,6 +51,7 @@ from .const import (
     UNIT_AUTO,
     VOLUME_UNITS,
 )
+from .webhook import webhook_urls
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -247,4 +248,10 @@ class WaterHOptionsFlow(OptionsFlow):
                 ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=schema,
+            description_placeholders={
+                "webhook_url": webhook_urls(self.hass, self.config_entry)
+            },
+        )

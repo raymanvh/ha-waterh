@@ -409,3 +409,52 @@ async def test_volume_unit_back_to_auto(
     await hass.async_block_till_done()
     today = hass.states.get("sensor.waterh_test_user_water_today")
     assert today.attributes["unit_of_measurement"] == "mL"
+
+
+async def test_app_webhook_creates_bottle_sensors(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    hass_client_no_auth,
+) -> None:
+    """Battery/charging appear only after the Android app reports."""
+    aioclient_mock.get(SELF_URL, json=SELF_RESPONSE)
+    aioclient_mock.get(LOG_URL, json=log_response([]))
+    entry = _entry(expires_at=dt_util.utcnow().timestamp() + 86400)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    webhook_id = entry.data["webhook_id"]
+    assert webhook_id
+    # Cloud-only users never see the bottle entities.
+    assert hass.states.get("sensor.waterh_test_user_bottle_battery") is None
+    assert hass.states.get("binary_sensor.waterh_test_user_bottle_charging") is None
+
+    client = await hass_client_no_auth()
+    bad = await client.post(f"/api/webhook/{webhook_id}", json={"battery": 140})
+    assert bad.status == 400
+    assert hass.states.get("sensor.waterh_test_user_bottle_battery") is None
+
+    ok = await client.post(
+        f"/api/webhook/{webhook_id}",
+        json={"battery": 87, "charging": True, "firmware": "1.1.5", "today_ml": 2757, "extra": 1},
+    )
+    assert ok.status == 200
+    await hass.async_block_till_done()
+
+    assert hass.states.get("sensor.waterh_test_user_bottle_battery").state == "87"
+    assert hass.states.get("binary_sensor.waterh_test_user_bottle_charging").state == "on"
+    assert hass.states.get("sensor.waterh_test_user_bottle_firmware").state == "1.1.5"
+    assert entry.data["app_reported"] is True
+
+    await client.post(f"/api/webhook/{webhook_id}", json={"battery": 86, "charging": False})
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.waterh_test_user_bottle_battery").state == "86"
+    assert hass.states.get("binary_sensor.waterh_test_user_bottle_charging").state == "off"
+
+    # After a reload the entities exist straight away and keep their last values.
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.data["webhook_id"] == webhook_id
+    assert hass.states.get("sensor.waterh_test_user_bottle_battery").state == "86"
+    assert hass.states.get("binary_sensor.waterh_test_user_bottle_charging").state == "off"

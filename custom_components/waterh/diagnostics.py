@@ -14,6 +14,7 @@ from .const import (
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
     CONF_REFRESH_TOKEN,
+    CONF_WEBHOOK_ID,
 )
 from .coordinator import WaterHConfigEntry
 
@@ -23,6 +24,7 @@ TO_REDACT = {
     CONF_EMAIL,
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
+    CONF_WEBHOOK_ID,
     "email",
     "first_name",
     "last_name",

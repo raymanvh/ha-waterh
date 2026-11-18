@@ -39,6 +39,10 @@ SOURCE_MANUAL: Final = "manual"
 
 # Display unit for volumes (option). "auto" follows Home Assistant's unit system.
 CONF_VOLUME_UNIT: Final = "volume_unit"
+# Webhook the WaterH Sync Android app posts bottle status to.
+CONF_WEBHOOK_ID: Final = "webhook_id"
+# Set once the app has reported, so bottle entities are only created for app users.
+CONF_APP_REPORTED: Final = "app_reported"
 UNIT_AUTO: Final = "auto"
 UNIT_APP: Final = "app"
 UNIT_ML: Final = "ml"

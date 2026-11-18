@@ -9,6 +9,11 @@ Unofficial Home Assistant integration for [WaterH](https://www.waterh.com) smart
 
 > **Not affiliated with WaterH.** This uses WaterH's private app API, found by examining the official Android app. It can break at any time if WaterH changes their API. See [docs/API.md](docs/API.md) for how it works.
 
+> [!IMPORTANT]
+> **Drinks reach Home Assistant only after they reach WaterH's servers.** The bottle stores each drink on board and hands it over only when the **official WaterH app is opened** on your phone. The official app doesn't sync in the background, so until you open it, new drinks won't show up here. This integration works with just the official app; you'll simply see drinks once you've opened it.
+>
+> **On Android?** [**WaterH Sync**](#want-it-hands-free-waterh-sync-for-android) syncs the bottle in the background for you, and adds battery and charging sensors.
+
 ## Why
 
 As of late 2026, WaterH has no Android Health Connect support, and its Fitbit integration no longer syncs. The bottle doesn't include drink data in its Bluetooth broadcasts. Drinks only reach the phone over a private connection and are then uploaded to WaterH's servers. Reading from the cloud is the most reliable way to get the data into Home Assistant.
@@ -27,6 +32,15 @@ One device per WaterH account, with these sensors:
 | **Last water temperature** | Water temperature reported by the bottle (°C, disabled by default). |
 | **Last update** | When Home Assistant last fetched data from WaterH (diagnostic). If this keeps advancing but a drink is missing, the phone hasn't uploaded it yet. |
 
+With the [WaterH Sync Android app](#want-it-hands-free-waterh-sync-for-android) connected, you also get these. They're reported by the app over Bluetooth, since WaterH's cloud doesn't have them, and they appear automatically the first time the app reports in:
+
+| Sensor | Description |
+| --- | --- |
+| **Bottle battery** | Battery level, in %. |
+| **Bottle charging** | On while the bottle is on its charger. |
+| **Bottle firmware** (diagnostic) | The bottle's firmware version. |
+| **Last app report** (diagnostic) | When the app last reported. These values update each time the app syncs. |
+
 Plus these controls:
 
 | Control | Description |
@@ -39,7 +53,26 @@ Plus these controls:
 
 "Water today" uses WaterH's `water_amount` (hydration value). For plain water it equals the liquid volume. For other drink types the app may weight it differently; the raw volume is in `liquid_total_ml`.
 
-Data updates every 5 minutes by default (adjustable from 1 to 60 minutes). The bottle only uploads when it syncs with the WaterH app on your phone, so a drink appears once the app has synced it, not the instant you drink.
+Data updates every 5 minutes by default (adjustable from 1 to 60 minutes). A drink appears once the bottle has synced it to WaterH (see the note at the top), not the instant you drink.
+
+## Want it hands-free? WaterH Sync for Android
+
+[**WaterH Sync**](https://github.com/raymanvh/waterh-sync-android) is a companion Android app that does what the official app won't: it syncs your bottle **in the background**. Drink, and within a minute or two the drink is on WaterH's servers and in Home Assistant, without opening anything. It also sends the bottle's **battery and charging state** to Home Assistant.
+
+- Watches for your bottle with a low-power Bluetooth scan and syncs whenever it wakes up nearby.
+- Uploads drinks to your WaterH account the same way the official app does, so the WaterH app, this integration, and everything else stay in step.
+- Clears drinks from the bottle only after WaterH has accepted them; nothing is lost if a sync fails.
+- Optional: the integration works without it.
+
+**Set up the battery sensors:**
+
+1. Install WaterH Sync from its [releases page](https://github.com/raymanvh/waterh-sync-android/releases) and set it up (see its README).
+2. In Home Assistant, go to **Settings → Devices & services → WaterH → Configure** and copy the **webhook URL** shown there.
+3. In WaterH Sync, open **Settings → Home Assistant** and paste the URL.
+
+The battery, charging, and firmware sensors appear after the app's next sync. Keep the webhook URL private: anyone who has it can report bottle status (but can't read anything from Home Assistant). If your phone syncs away from home, use your external or Nabu Casa remote URL so reports still arrive.
+
+Android only for now; on iPhone, keep using the official app.
 
 ## Installation
 
@@ -133,7 +166,8 @@ automation:
 ## Troubleshooting
 
 - **"Wrong email or password"**: check that you can log in to the WaterH app with email and password (not just Google). See the setup note above.
-- **Values lag behind the app**: open the WaterH app so the bottle syncs, then wait for the next update.
+- **Drinks are missing or late**: the bottle hasn't synced to WaterH yet. Open the WaterH app (or let WaterH Sync do it), then wait for the next update. The **Last update** sensor shows when the integration last checked.
+- **No battery or charging sensors**: these need the WaterH Sync Android app with the webhook URL set. They appear after the app's first report.
 - **Everything stopped working with login errors**: WaterH may have changed their app credentials. See [docs/API.md](docs/API.md#if-waterh-changes-their-app-credentials).
 - Download **diagnostics** from the integration page when reporting a problem. Tokens, email and personal details are redacted.
 

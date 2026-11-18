@@ -21,8 +21,10 @@ from .const import (
 )
 from .coordinator import WaterHConfigEntry, WaterHCoordinator
 from .services import async_setup_services
+from .webhook import async_register_webhook
 
 PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.NUMBER,
     Platform.SELECT,
@@ -76,6 +78,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaterHConfigEntry) -> bo
     coordinator = WaterHCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+    # Receives battery/charging reports from the optional Android app.
+    async_register_webhook(hass, entry)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

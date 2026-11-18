@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -21,6 +22,7 @@ from .api import (
     WaterHRateLimitError,
 )
 from .const import (
+    CONF_APP_REPORTED,
     CONF_SCAN_INTERVAL,
     CONF_USER_ID,
     DEFAULT_SCAN_INTERVAL,
@@ -75,6 +77,17 @@ class WaterHData:
         return round(self.total_ml / self.goal_ml * 100, 1)
 
 
+@dataclass
+class BottleStatus:
+    """Bottle state reported by the WaterH Sync Android app (not available from the cloud)."""
+
+    battery: int
+    charging: bool | None
+    firmware: str | None
+    today_ml: int | None
+    reported_at: datetime
+
+
 type WaterHConfigEntry = ConfigEntry[WaterHCoordinator]
 
 
@@ -102,6 +115,28 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         # Settings for the "Log drink" button (kept in Home Assistant only).
         self.quick_amount_ml: int = 250
         self.quick_drink_type: str = "water"
+        # Pushed by the Android app through the webhook; None until it reports.
+        self.bottle: BottleStatus | None = None
+        self._first_report_callbacks: list[Callable[[], None]] = []
+
+    @callback
+    def async_add_first_report_callback(self, cb: Callable[[], None]) -> None:
+        """Run [cb] the first time the app reports (to create bottle entities)."""
+        self._first_report_callbacks.append(cb)
+
+    @callback
+    def async_set_bottle(self, status: BottleStatus) -> None:
+        """Store a report from the app and refresh entities."""
+        self.bottle = status
+        entry = self.config_entry
+        if not entry.data.get(CONF_APP_REPORTED):
+            self.hass.config_entries.async_update_entry(
+                entry, data={**entry.data, CONF_APP_REPORTED: True}
+            )
+            callbacks, self._first_report_callbacks = self._first_report_callbacks, []
+            for cb in callbacks:
+                cb()
+        self.async_update_listeners()
 
     async def _async_update_data(self) -> WaterHData:
         now = dt_util.now()
