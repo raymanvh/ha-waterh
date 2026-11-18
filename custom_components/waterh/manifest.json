@@ -9,5 +9,5 @@
   "issue_tracker": "https://github.com/raymanvh/ha-waterh/issues",
   "loggers": ["custom_components.waterh"],
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.1.1"
 }
