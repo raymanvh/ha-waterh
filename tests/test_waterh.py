@@ -325,3 +325,40 @@ async def test_unit_option_follows_app(
     # Metric HA, but the WaterH app is set to imperial.
     goal = hass.states.get("number.waterh_test_user_daily_goal")
     assert goal.attributes["unit_of_measurement"] == "fl. oz."
+
+
+async def test_goal_number_limits_align_with_step(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Whole-number goals must be valid in the UI (min + n * step)."""
+    await _setup(hass, aioclient_mock, options={"volume_unit": "oz", "scan_interval": 5})
+    attrs = hass.states.get("number.waterh_test_user_daily_goal").attributes
+    assert attrs["step"] == 1
+    assert attrs["min"] == int(attrs["min"])
+    assert (160 - attrs["min"]) % attrs["step"] == 0
+
+
+async def test_log_drink_button(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    await _setup(hass, aioclient_mock, options={"volume_unit": "oz", "scan_interval": 5})
+    amount = "number.waterh_test_user_drink_amount"
+    drink_type = "select.waterh_test_user_drink_type"
+    button = "button.waterh_test_user_log_drink"
+    assert hass.states.get(amount).state == "8.0"
+    assert hass.states.get(drink_type).state == "water"
+
+    await hass.services.async_call(
+        "number", "set_value", {"entity_id": amount, "value": 12}, blocking=True
+    )
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": drink_type, "option": "coffee"}, blocking=True
+    )
+    aioclient_mock.post(LOG_URL, json=log_response([]))
+    await hass.services.async_call(
+        "button", "press", {"entity_id": button}, blocking=True
+    )
+    post = [c for c in aioclient_mock.mock_calls if c[0] == "POST" and "/log" in str(c[1])]
+    entry = post[0][2]["data"][0]
+    assert entry["amount"] == 355  # 12 fl. oz.
+    assert entry["water_type"] == "coffee"

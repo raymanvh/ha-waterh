@@ -66,6 +66,25 @@
     "number": {
       "daily_goal": {
         "name": "Daily goal"
+      },
+      "quick_amount": {
+        "name": "Drink amount"
+      }
+    },
+    "select": {
+      "quick_drink_type": {
+        "name": "Drink type",
+        "state": {
+          "water": "Water",
+          "coffee": "Coffee",
+          "tea": "Tea",
+          "juice": "Juice"
+        }
+      }
+    },
+    "button": {
+      "log_drink": {
+        "name": "Log drink"
       }
     }
   },

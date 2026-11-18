@@ -24,7 +24,14 @@ One device per WaterH account, with these sensors:
 | **Last drink time** | Timestamp of the most recent drink. |
 | **Last water temperature** | Water temperature reported by the bottle (°C, disabled by default). |
 
-Plus a **Daily goal** number entity. It shows your WaterH goal, and changing it updates the goal in the WaterH app.
+Plus these controls:
+
+| Control | Description |
+| --- | --- |
+| **Daily goal** | Your WaterH goal. Changing it updates the goal in the WaterH app. |
+| **Drink amount** | How much **Log drink** adds (default 8 fl. oz. / 250 mL). Kept in Home Assistant only. |
+| **Drink type** | Water, coffee, tea or juice, for **Log drink**. Kept in Home Assistant only. |
+| **Log drink** | Adds a manual drink with the amount and type above, like the **+** button in the app. |
 
 "Water today" uses WaterH's `water_amount` (hydration value). For plain water it equals the liquid volume. For other drink types the app may weight it differently; the raw volume is in `liquid_total_ml`.
 
@@ -63,7 +70,7 @@ Copy `custom_components/waterh` into your Home Assistant `config/custom_componen
 
 ### `waterh.log_drink`
 
-Adds a manual drink, like the **+** button in the WaterH app. It's handy for a glass from the tap, a coffee, or an NFC tag by the sink.
+Adds a manual drink, like the **+** button in the WaterH app. Use it in automations and scripts (for example an NFC tag by the sink); on the device page, the **Log drink** button does the same thing.
 
 | Field | Required | Description |
 | --- | --- | --- |

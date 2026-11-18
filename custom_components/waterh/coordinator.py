@@ -98,6 +98,9 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         )
         self.client = client
         self.user_id: int = entry.data[CONF_USER_ID]
+        # Settings for the "Log drink" button (kept in Home Assistant only).
+        self.quick_amount_ml: int = 250
+        self.quick_drink_type: str = "water"
 
     async def _async_update_data(self) -> WaterHData:
         now = dt_util.now()
