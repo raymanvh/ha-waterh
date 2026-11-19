@@ -493,6 +493,61 @@ async def test_recalibrate_button(hass: HomeAssistant) -> None:
     assert "recalibration failed" in attrs["last_recalibration_result"]
 
 
+async def test_guided_recalibration_in_options(hass: HomeAssistant) -> None:
+    entry = await _create_bluetooth_entry(hass)
+    bottle = FakeBottle()
+    patches = _ble_patches(bottle, present=False)
+    for p in patches:
+        p.start()
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+
+    all_ticked = {"bottle_empty": True, "cap_on": True, "flat_surface": True, "not_held": True}
+    patches = _ble_patches(bottle, present=True)
+    for p in patches:
+        p.start()
+    try:
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"next_step_id": "recalibrate"}
+        )
+        assert result["step_id"] == "recalibrate"
+        # Nothing is sent until every box is ticked.
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {**all_ticked, "cap_on": False}
+        )
+        assert result["errors"] == {"base": "confirm_checklist"}
+        assert "recalibrate" not in bottle.timeline
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], all_ticked
+        )
+        assert result["type"] is FlowResultType.ABORT
+        assert result["reason"] == "recalibrated"
+        assert bottle.timeline == ["status", "recalibrate"]
+
+        # A failure stays on the form and says why.
+        failing = FakeBottle(recalibrate_codes=(2, 4))
+        bluetooth_sync.establish_connection.return_value = failing
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"next_step_id": "recalibrate"}
+        )
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], all_ticked
+        )
+        assert result["errors"] == {"base": "recalibrate_failed"}
+        assert "recalibration failed" in result["description_placeholders"]["error"]
+    finally:
+        for p in patches:
+            p.stop()
+    # Recalibrating changes no options (so no reload).
+    assert entry.options == {"sync_interval": 5, "update_bottle": True, "android_app": False}
+
+
 async def test_failed_sync_is_reported(hass: HomeAssistant) -> None:
     entry = await _create_bluetooth_entry(hass)
     bottle = FakeBottle(status=None)
@@ -533,6 +588,12 @@ async def test_options_need_a_source_and_can_add_the_app(hass: HomeAssistant) ->
         patch("custom_components.waterh.config_flow._discovered_bottles", return_value={}),
     ):
         result = await hass.config_entries.options.async_init(entry.entry_id)
+        # Bluetooth entries get a menu: sync settings or recalibrate.
+        assert result["type"] is FlowResultType.MENU
+        assert result["menu_options"] == ["sync", "recalibrate"]
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"next_step_id": "sync"}
+        )
         assert result["step_id"] == "sync"
         base = {"sync_interval": 10, "update_bottle": True, "volume_unit": "auto"}
         result = await hass.config_entries.options.async_configure(

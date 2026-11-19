@@ -106,12 +106,39 @@
           "update_bottle": "Sets the bottle's clock, daily goal and today's total to Home Assistant's on each sync, so the bottle's display matches your dashboards. Turn off to only read drinks.",
           "android_app": "Turn on if you also use the WaterH Sync app, e.g. to sync while away from home."
         }
+      },
+      "bluetooth_menu": {
+        "title": "WaterH options",
+        "menu_options": {
+          "sync": "Sync settings",
+          "recalibrate": "Recalibrate the bottle"
+        },
+        "menu_option_descriptions": {
+          "sync": "Bluetooth bottle, sync interval, keeping the bottle in step, the Android app, and the volume unit.",
+          "recalibrate": "Reset the bottle's empty weight so it measures drinks accurately. Use this if drinks are logged too large or too small."
+        }
+      },
+      "recalibrate": {
+        "title": "Recalibrate the bottle",
+        "description": "The bottle works out how much you drank from changes in what it measures. Recalibrating records what the bottle reads when it's **empty**, as its new starting point. This is the same as **Recalibrate bottle** in the official WaterH app, and it doesn't touch drinks stored on the bottle.\n\nRecalibrate if drinks are logged noticeably too large or too small. Even calibrated, WaterH says the Boost can be up to 20% off.\n\n**Before you start**\n1. Empty the bottle. Pour it out with the cap off so the bottle doesn't log it as a drink.\n2. Twist the cap back on.\n3. Stand the bottle upright on a flat surface, such as a table, and let go of it.\n4. Make sure it's near a Bluetooth adapter or proxy and no phone is connected to it.\n\nTick each box below, then submit. The bottle's blue light flashes while it records its empty weight. This takes about 10 seconds; don't touch the bottle until it's done.",
+        "data": {
+          "bottle_empty": "The bottle is empty",
+          "cap_on": "The cap is twisted back on",
+          "flat_surface": "It's standing upright on a flat surface",
+          "not_held": "Nobody is holding or touching it"
+        }
       }
     },
     "error": {
       "no_source": "Choose a Bluetooth bottle, turn on the Android app, or both; otherwise no drinks can arrive.",
       "invalid_address": "That isn't a Bluetooth address. It looks like AA:BB:CC:DD:EE:FF.",
-      "no_bluetooth": "Home Assistant's Bluetooth integration isn't set up. Add a Bluetooth adapter or ESPHome Bluetooth proxy first."
+      "no_bluetooth": "Home Assistant's Bluetooth integration isn't set up. Add a Bluetooth adapter or ESPHome Bluetooth proxy first.",
+      "confirm_checklist": "Tick every box first. If the bottle isn't empty, capped, upright and left alone, it records the wrong starting point and measures drinks wrong.",
+      "not_loaded": "The integration isn't running right now, so it can't reach the bottle. Check that it's loaded, then try again.",
+      "recalibrate_failed": "Couldn't recalibrate: {error}"
+    },
+    "abort": {
+      "recalibrated": "Done. The bottle recorded its new empty weight and can be used normally. To check it, drink a measured amount and compare it with what Home Assistant logs."
     }
   },
   "entity": {

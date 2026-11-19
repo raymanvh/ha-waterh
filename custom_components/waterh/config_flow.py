@@ -10,6 +10,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import webhook
 from homeassistant.config_entries import (
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -37,6 +38,7 @@ from .api import (
     WaterHError,
     WaterHTokens,
 )
+from .ble_session import BottleSyncError
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_ANDROID_APP,
@@ -82,6 +84,8 @@ _LOGGER = logging.getLogger(__name__)
 MAC_RE = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 # Value used in the options form's bottle picker for "Bluetooth sync off".
 ADDRESS_OFF = "off"
+# What the official app asks you to confirm before recalibrating.
+RECALIBRATE_CHECKLIST = ("bottle_empty", "cap_on", "flat_surface", "not_held")
 
 
 def _discovered_bottles(hass) -> dict[str, str]:
@@ -384,6 +388,8 @@ class WaterHOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if is_no_account(self.config_entry):
+            if bottle_address(self.config_entry):
+                return await self.async_step_bluetooth_menu()
             return await self.async_step_sync(user_input)
         if user_input is not None:
             cleaned = {
@@ -440,6 +446,49 @@ class WaterHOptionsFlow(OptionsFlow):
             description_placeholders={
                 "webhook_url": webhook_urls(self.hass, self.config_entry)
             },
+        )
+
+    async def async_step_bluetooth_menu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Bluetooth entries: sync settings, or recalibrate the bottle."""
+        return self.async_show_menu(
+            step_id="bluetooth_menu", menu_options=["sync", "recalibrate"]
+        )
+
+    async def async_step_recalibrate(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Guided recalibration, like the official app's Recalibrate bottle screen."""
+        entry = self.config_entry
+        errors: dict[str, str] = {}
+        placeholders: dict[str, str] = {"error": ""}
+        if user_input is not None:
+            if not all(user_input.get(key) for key in RECALIBRATE_CHECKLIST):
+                errors["base"] = "confirm_checklist"
+            elif (
+                entry.state is not ConfigEntryState.LOADED
+                or entry.runtime_data.ble is None
+            ):
+                errors["base"] = "not_loaded"
+            else:
+                try:
+                    await entry.runtime_data.ble.async_recalibrate()
+                except BottleSyncError as err:
+                    errors["base"] = "recalibrate_failed"
+                    placeholders["error"] = str(err)
+                else:
+                    return self.async_abort(reason="recalibrated")
+        return self.async_show_form(
+            step_id="recalibrate",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(key, default=False): BooleanSelector()
+                    for key in RECALIBRATE_CHECKLIST
+                }
+            ),
+            description_placeholders=placeholders,
+            errors=errors,
         )
 
     async def async_step_sync(

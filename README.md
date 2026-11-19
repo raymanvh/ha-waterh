@@ -73,7 +73,7 @@ Entries without a WaterH account (Bluetooth or Android app) can use **both**: un
 
 ## Things to know before you choose
 
-Some of these are limits of the bottle itself; others simply haven't been tested yet. Bluetooth through Home Assistant is new in 0.4.0. The protocol is the one the WaterH Sync app has used on a real bottle, but this Home Assistant version has had limited real-world use so far.
+Some of these are limits of the bottle itself; others simply haven't been tested yet. Bluetooth through Home Assistant is new in 0.4.0. It uses the same protocol the WaterH Sync app has used on a real bottle, and it has been tested with one WaterH Boost (946 mL) through ESPHome Bluetooth proxies. Wider use may turn up things one setup didn't.
 
 - **Only one thing should read the bottle.** The official WaterH app, WaterH Sync, and Home Assistant each take the drinks off the bottle when they sync. Pick one mode, or Bluetooth plus WaterH Sync on the same entry, which share one drink store.
 - **One connection at a time.** If your phone is connected to the bottle when Home Assistant tries, the sync fails and is retried next interval. The **Bluetooth sync** sensor shows why.
@@ -123,7 +123,7 @@ Bluetooth through Home Assistant only:
 | **Bluetooth sync** (diagnostic) | `Waiting for bottle`, `Syncing`, `OK`, `Not in range` or `Failed`. Attributes: `last_error` (why the last sync failed), `last_attempt`, `next_sync_after`, `via` (which adapter or proxy), `drinks_last_sync`, `cleared_last_sync`, and `steps` (what the last sync did, for troubleshooting). |
 | **Last Bluetooth sync** (diagnostic) | When the last successful sync finished. |
 | **Sync bottle now** | Syncs immediately, ignoring the interval. Shows an error if it can't. |
-| **Recalibrate bottle** (configuration) | Recalibrates the empty bottle, like **Recalibrate bottle** in the official app. See [Recalibrating the bottle](#recalibrating-the-bottle). |
+| **Recalibrate bottle** (configuration) | Recalibrates the empty bottle in one press. **Configure → Recalibrate the bottle** walks you through it instead. See [Recalibrating the bottle](#recalibrating-the-bottle). |
 
 "Water today" uses WaterH's hydration value. For plain water it equals the volume; in account mode, other drink types may be weighted differently by WaterH, and the raw volume is in `liquid_total_ml`.
 
@@ -174,7 +174,7 @@ Keep the webhook URL private: anyone who has it can add drinks.
 
 ## Settings (Configure)
 
-**Bluetooth and Android app entries** (**Settings → Devices & services → WaterH → Configure**):
+**Bluetooth and Android app entries** (**Settings → Devices & services → WaterH → Configure**; with Bluetooth on, choose **Sync settings**. The other choice is [Recalibrate the bottle](#recalibrating-the-bottle)):
 
 | Setting | Default | What it does |
 | --- | --- | --- |
@@ -195,21 +195,24 @@ At least one of **Bluetooth bottle** and **Android app** has to be on.
 
 ## Recalibrating the bottle
 
-If the bottle's measurements drift (drinks recorded too large or too small), recalibrate it. This sends the same command as **Recalibrate bottle** in the official WaterH app, so you don't need the official app for it. Available with Bluetooth through Home Assistant.
+**What it does.** The bottle works out how much you drank from changes in what it measures. Recalibrating records what it reads when it's **empty**, as its new starting point. It's the same as **Recalibrate bottle** in the official WaterH app, so you don't need the official app for it. Stored drinks aren't touched. Available with Bluetooth through Home Assistant.
 
-1. **Empty the bottle** completely.
+**When.** If drinks are logged noticeably too large or too small. Even calibrated, WaterH says the Boost can be up to 20% off.
+
+**How (guided):** **Settings → Devices & services → WaterH → Configure → Recalibrate the bottle**. The screen explains each step and won't start until you've ticked every box:
+
+1. **Empty the bottle.** Pour it out with the cap off, so the bottle doesn't log it as a drink.
 2. **Twist the cap back on.**
-3. **Stand it upright on a flat surface**, such as a table, and **don't hold it**.
-4. Make sure it's within range of a Bluetooth adapter or proxy, and that no phone is connected to it.
-5. Press **Recalibrate bottle** on the WaterH device page. The bottle's blue light flashes while it records its empty weight.
+3. **Stand it upright on a flat surface**, such as a table, and let go.
+4. Make sure it's near a Bluetooth adapter or proxy and no phone is connected to it.
 
-When it's done you get a "WaterH bottle recalibrated" notification. If it fails, an error says why. The result is also kept in the `last_recalibration` and `last_recalibration_result` attributes of **Bluetooth sync**. Recalibrating doesn't touch drinks stored on the bottle.
+Submit, and leave the bottle alone for about 10 seconds. Its blue light flashes while it records its empty weight. The screen then says it's done, or shows what went wrong so you can try again.
 
-Good to know:
+**Or with the button:** the **Recalibrate bottle** button (configuration section of the device page) does the same in one press, for dashboards or scripts. It doesn't show the checklist, so get the bottle ready first. You get a "WaterH bottle recalibrated" notification when it's done, or an error.
 
-- Pouring water out to empty the bottle may be recorded as a drink. If one shows up, remove it with `waterh.delete_drink` (the **Last drink** sensor's `drink_id` attribute).
-- WaterH says Boost bottles may still be up to 20% off when tracking water.
-- Recalibration is new in 0.4.0. The command and the bottle's replies come from the official app's code, but this integration hasn't run it on a real bottle yet.
+Either way, the result is kept in the `last_recalibration` and `last_recalibration_result` attributes of **Bluetooth sync**. To check the result, drink a measured amount and compare it with what Home Assistant logs.
+
+Recalibration is new in 0.4.0. The command and the bottle's replies come from the official app's code, and it has worked on a real Boost (946 mL).
 
 ## Actions
 
