@@ -539,6 +539,8 @@ async def test_local_mode_drinks_from_app(
     )
     body = await resp.json()
     assert resp.status == 200 and body["accepted"] == 3
+    # The reply carries today's total (yesterday's drink excluded) for the bottle display.
+    assert body["today_ml"] == 155
     await hass.async_block_till_done()
 
     assert hass.states.get("sensor.waterh_bottle_water_today").state == "155"

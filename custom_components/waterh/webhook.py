@@ -4,7 +4,7 @@ Every mode: bottle status (battery, charging, firmware), which WaterH's cloud
 doesn't have. Local mode: also the drinks read off the bottle, which are
 stored before the reply so the app only clears the bottle once they're safe.
 
-Reply: {"ok", "mode", "accepted", "goal_ml", "unit"}. The app uses goal_ml
+Reply: {"ok", "mode", "accepted", "goal_ml", "today_ml", "unit"}. The app uses goal_ml
 for the bottle and unit for display. An empty JSON object just fetches those.
 """
 
@@ -126,6 +126,9 @@ def async_register_webhook(hass: HomeAssistant, entry: WaterHConfigEntry) -> Non
                 "mode": mode,
                 "accepted": accepted,
                 "goal_ml": data.goal_ml if data else None,
+                # Today's total (manual drinks included); the app writes it to the
+                # bottle in local mode so its display matches Home Assistant.
+                "today_ml": data.total_ml if data else None,
                 "unit": entry_unit(hass, entry),
             }
         )
