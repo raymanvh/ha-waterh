@@ -1,1 +1,4 @@
 pytest-homeassistant-custom-component
+# Home Assistant's Bluetooth component imports its USB component, which needs these.
+aiousbwatcher
+pyserial
