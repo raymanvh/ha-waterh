@@ -16,6 +16,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.waterh import bluetooth_sync
 from custom_components.waterh.ble_session import BottleSession, BottleSyncError
@@ -357,6 +358,50 @@ async def test_button_during_a_sync_waits_instead_of_reconnecting(hass: HomeAssi
     assert connect.call_count == 1
     assert bottle.timeline.count("status") == 1
     assert hass.states.get("sensor.waterh_bottle_bluetooth_sync").state == "ok"
+
+
+async def test_next_sync_runs_one_interval_after_the_last(
+    hass: HomeAssistant, freezer
+) -> None:
+    """A quiet bottle (no advertisements) is synced one interval after the last
+    sync, not on a timer counted from when the integration loaded."""
+    entry = await _create_bluetooth_entry(hass)
+    bottle = FakeBottle()
+    patches = _ble_patches(bottle, present=False)
+    for p in patches:
+        p.start()
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done(wait_background_tasks=True)
+    finally:
+        for p in patches:
+            p.stop()
+
+    patches = _ble_patches(bottle, present=True)
+    started = [p.start() for p in patches]
+    connect = started[5]
+    try:
+        ble = entry.runtime_data.ble
+        ble.in_range = True
+        # A sync 2 minutes after loading (e.g. Sync bottle now).
+        freezer.tick(timedelta(minutes=2))
+        async_fire_time_changed(hass)
+        assert await ble.async_sync()
+        assert connect.call_count == 1
+        # 4 minutes after that sync: not due (a timer counted from loading
+        # would fire here and skip, leaving the next sync ~10 min away).
+        freezer.tick(timedelta(minutes=4))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert connect.call_count == 1
+        # Just over 5 minutes after the sync: due, no advertisement needed.
+        freezer.tick(timedelta(minutes=1, seconds=5))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert connect.call_count == 2
+    finally:
+        for p in patches:
+            p.stop()
 
 
 async def test_failed_sync_is_reported(hass: HomeAssistant) -> None:

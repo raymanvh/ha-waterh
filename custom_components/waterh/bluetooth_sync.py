@@ -26,7 +26,7 @@ from bleak_retry_connector import (
 )
 from homeassistant.components import bluetooth
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
 
 from .ble_session import BottleSession, BottleSyncError, SessionResult
@@ -83,6 +83,8 @@ class BottleBluetooth:
         self.via: str | None = None
         self._task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
+        self._cancel_timer: CALLBACK_TYPE | None = None
+        self._stopped = False
 
     # ---- watching -------------------------------------------------------
 
@@ -102,15 +104,19 @@ class BottleBluetooth:
             bluetooth.async_track_unavailable(
                 self.hass, self._on_unavailable, self.address, connectable=True
             ),
-            async_track_time_interval(self.hass, self._on_timer, self.interval),
         ]
         if self.in_range:
             self.async_schedule()
+        self._arm_timer()
 
         @callback
         def _stop() -> None:
+            self._stopped = True
             for unsub in unsubs:
                 unsub()
+            if self._cancel_timer:
+                self._cancel_timer()
+                self._cancel_timer = None
             if self._task and not self._task.done():
                 self._task.cancel()
 
@@ -131,7 +137,24 @@ class BottleBluetooth:
         self.coordinator.async_update_listeners()
 
     @callback
+    def _arm_timer(self) -> None:
+        if self._stopped:
+            return
+        """Wake up exactly when the next sync is due (a quiet bottle sends no
+        advertisements to trigger it), or one interval from now."""
+        if self._cancel_timer:
+            self._cancel_timer()
+        due = self.next_due
+        delay = (due - dt_util.utcnow()).total_seconds() if due else self.interval.total_seconds()
+        self._cancel_timer = async_call_later(self.hass, max(delay, 5) + 1, self._on_timer)
+
+    @callback
     def _on_timer(self, _now: datetime) -> None:
+        # Check again one interval from now; a sync that starts here re-arms
+        # the timer from its own finish time.
+        self._cancel_timer = async_call_later(
+            self.hass, self.interval.total_seconds(), self._on_timer
+        )
         if self.in_range:
             self.async_schedule()
 
@@ -264,6 +287,8 @@ class BottleBluetooth:
     def _finish(self, status: str, error: str | None) -> None:
         self.status = status
         self.last_error = error
+        # Every attempt, successful or not, sets the clock for the next one.
+        self._arm_timer()
         if error:
             _LOGGER.debug("WaterH Bluetooth sync: %s", error)
         self.coordinator.async_update_listeners()
