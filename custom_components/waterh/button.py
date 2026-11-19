@@ -46,7 +46,7 @@ class WaterHSyncNowButton(CoordinatorEntity[WaterHCoordinator], ButtonEntity):
     async def async_press(self) -> None:
         ble = self.coordinator.ble
         assert ble is not None
-        if not await ble.async_sync():
+        if not await ble.async_sync_now():
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="sync_failed",

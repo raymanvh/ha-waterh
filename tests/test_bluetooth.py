@@ -56,7 +56,11 @@ class FakeBottle:
         records: list[bytes] | None = None,
         status: bytes | None = REAL_STATUS,
         stop_after_first_packet: bool = False,
+        ignore_logs_requests: int = 0,
+        write_delay: float = 0,
     ) -> None:
+        self.ignore_logs_requests = ignore_logs_requests
+        self.write_delay = write_delay
         self.records = list(records or [])
         self.status = status
         self.stop_after_first_packet = stop_after_first_packet
@@ -74,6 +78,8 @@ class FakeBottle:
         asyncio.get_running_loop().call_soon(self._notify, None, bytearray(data))
 
     async def write_gatt_char(self, char: Any, data: bytes, response: bool = True) -> None:
+        if self.write_delay:
+            await asyncio.sleep(self.write_delay)
         self.writes.append(bytes(data))
         if data == REQUEST_STATUS:
             self.timeline.append("status")
@@ -84,6 +90,9 @@ class FakeBottle:
             self._reply(bytes.fromhex("5250000F0305") + data[6:8] + bytes(13))
         elif data == REQUEST_WATER_LOGS:
             self.timeline.append("logs")
+            if self.ignore_logs_requests > 0:
+                self.ignore_logs_requests -= 1
+                return
             if not self.records:
                 self._reply(bytes([0x52, 0x50, 0, 3, 2, 6, 0]))
                 return
@@ -179,6 +188,30 @@ async def test_update_bottle_off_only_reads_and_clears() -> None:
     session, _ = _session(bottle, now=now, goal=3000, update=False)
     await session.run()
     assert bottle.timeline == ["status", "logs", "store", "clear"]
+
+
+async def test_stored_drinks_request_is_retried_once() -> None:
+    now = datetime(2026, 11, 17, 23, 5, 0)
+    bottle = FakeBottle([_record(now, 150)], ignore_logs_requests=1)
+    session, saved = _session(bottle, now=now, goal=None)
+    with patch("custom_components.waterh.ble_session.LOGS_FIRST_TIMEOUT_S", 0.05):
+        result = await session.run()
+    assert bottle.timeline == ["status", "settings", "logs", "logs", "store", "clear", "total"]
+    assert [r.amount_ml for r in saved[0]] == [150]
+    assert result.cleared == 1
+
+
+async def test_stored_drinks_never_answered_clears_nothing() -> None:
+    now = datetime(2026, 11, 17, 23, 5, 0)
+    bottle = FakeBottle([_record(now, 150)], ignore_logs_requests=2)
+    session, saved = _session(bottle, now=now, goal=None)
+    with (
+        patch("custom_components.waterh.ble_session.LOGS_FIRST_TIMEOUT_S", 0.05),
+        pytest.raises(BottleSyncError, match="asked twice"),
+    ):
+        await session.run()
+    assert bottle.timeline == ["status", "settings", "logs", "logs"]
+    assert saved == []
 
 
 async def test_silent_bottle_is_an_error() -> None:
@@ -291,6 +324,39 @@ async def test_bluetooth_entry_end_to_end(hass: HomeAssistant) -> None:
     assert drink.created == dt_util.as_utc(
         (now_local - timedelta(minutes=5)).replace(tzinfo=dt_util.get_default_time_zone())
     )
+
+
+async def test_button_during_a_sync_waits_instead_of_reconnecting(hass: HomeAssistant) -> None:
+    entry = await _create_bluetooth_entry(hass)
+    bottle = FakeBottle(write_delay=0.05)
+    patches = _ble_patches(bottle, present=False)
+    for p in patches:
+        p.start()
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+
+    patches = _ble_patches(bottle, present=True)
+    started = [p.start() for p in patches]
+    connect = started[5]  # establish_connection
+    try:
+        ble = entry.runtime_data.ble
+        running = hass.async_create_task(ble.async_sync())
+        await asyncio.sleep(0.01)  # the first sync is now connected and talking
+        await hass.services.async_call(
+            "button", "press", {"entity_id": "button.waterh_bottle_sync_bottle_now"},
+            blocking=True,
+        )
+        await running
+    finally:
+        for p in patches:
+            p.stop()
+    assert connect.call_count == 1
+    assert bottle.timeline.count("status") == 1
+    assert hass.states.get("sensor.waterh_bottle_bluetooth_sync").state == "ok"
 
 
 async def test_failed_sync_is_reported(hass: HomeAssistant) -> None:

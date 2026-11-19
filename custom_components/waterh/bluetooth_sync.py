@@ -158,6 +158,18 @@ class BottleBluetooth:
 
     # ---- syncing --------------------------------------------------------
 
+    async def async_sync_now(self) -> bool:
+        """Sync now for the button. If a sync is already running, wait for it instead.
+
+        Back-to-back connections give the bottle no time to settle, and the
+        running sync already does what the button asks.
+        """
+        if self._lock.locked():
+            async with self._lock:
+                pass
+            return self.status == STATUS_OK
+        return await self.async_sync()
+
     async def async_sync(self) -> bool:
         """Run one sync now. Returns True on success; never raises."""
         async with self._lock:

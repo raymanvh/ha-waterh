@@ -58,7 +58,8 @@ CLOCK_TOLERANCE_S = 30
 
 STATUS_TIMEOUT_S = 6.0
 SETTINGS_TIMEOUT_S = 6.0
-LOGS_FIRST_TIMEOUT_S = 10.0
+# Per attempt; the stored-drinks request is sent up to twice.
+LOGS_FIRST_TIMEOUT_S = 8.0
 LOGS_NEXT_TIMEOUT_S = 5.0
 ACK_TIMEOUT_S = 3.0
 
@@ -217,11 +218,22 @@ class BottleSession:
 
     async def _read_logs(self) -> bool:
         """Read stored records into the result. Returns True if the full list arrived."""
-        await self._send(REQUEST_WATER_LOGS, "request stored drinks")
         collector = LogCollector()
-        packet = await self._wait_for((NoLogs, LogStart), LOGS_FIRST_TIMEOUT_S)
+        packet: Packet | None = None
+        for attempt in (1, 2):
+            await self._send(
+                REQUEST_WATER_LOGS,
+                "request stored drinks" + (" (retry)" if attempt > 1 else ""),
+            )
+            packet = await self._wait_for((NoLogs, LogStart), LOGS_FIRST_TIMEOUT_S)
+            if packet is not None:
+                break
+            self._step("no answer to the stored-drinks request")
         if packet is None:
-            raise BottleSyncError("The bottle didn't send its stored drinks.")
+            raise BottleSyncError(
+                "The bottle answered the status request but didn't send its stored "
+                "drinks, even when asked twice. Nothing was cleared; it will try again."
+            )
         if isinstance(packet, NoLogs):
             self._step("no drinks stored on the bottle")
             return True
