@@ -22,6 +22,7 @@ from custom_components.waterh import bluetooth_sync
 from custom_components.waterh.ble_session import BottleSession, BottleSyncError
 from custom_components.waterh.const import DOMAIN
 from custom_components.waterh.protocol import (
+    REQUEST_RECALIBRATE_EMPTY,
     REQUEST_STATUS,
     REQUEST_WATER_LOGS,
     LogRecord,
@@ -59,7 +60,9 @@ class FakeBottle:
         stop_after_first_packet: bool = False,
         ignore_logs_requests: int = 0,
         write_delay: float = 0,
+        recalibrate_codes: tuple[int, ...] = (2, 3),
     ) -> None:
+        self.recalibrate_codes = recalibrate_codes
         self.ignore_logs_requests = ignore_logs_requests
         self.write_delay = write_delay
         self.records = list(records or [])
@@ -102,6 +105,10 @@ class FakeBottle:
             if not self.stop_after_first_packet:
                 for rec in self.records[1:]:
                     self._reply(bytes([13, 6]) + rec)
+        elif data == REQUEST_RECALIBRATE_EMPTY:
+            self.timeline.append("recalibrate")
+            for code in self.recalibrate_codes:
+                self._reply(bytes([0x52, 0x54, 0, 3, 2, 0xA1, code]))
         elif data.startswith(bytes.fromhex("525000040306")):
             self.timeline.append("clear")
         elif data.startswith(bytes.fromhex("505400040304")):
@@ -213,6 +220,33 @@ async def test_stored_drinks_never_answered_clears_nothing() -> None:
         await session.run()
     assert bottle.timeline == ["status", "settings", "logs", "logs"]
     assert saved == []
+
+
+async def test_recalibrate_succeeds_and_touches_nothing_else() -> None:
+    bottle = FakeBottle([_record(datetime(2026, 11, 17, 8), 100)])
+    session, saved = _session(bottle, now=datetime(2026, 11, 17, 9), goal=3000)
+    status = await session.recalibrate()
+    assert status.battery == 99
+    # Only status and the recalibrate command: no settings, no drinks read or cleared.
+    assert bottle.timeline == ["status", "recalibrate"]
+    assert saved == []
+
+
+async def test_recalibrate_failure_is_reported() -> None:
+    bottle = FakeBottle(recalibrate_codes=(2, 4))
+    session, _ = _session(bottle, now=datetime(2026, 11, 17, 9), goal=None)
+    with pytest.raises(BottleSyncError, match="recalibration failed"):
+        await session.recalibrate()
+
+
+async def test_recalibrate_without_result_times_out() -> None:
+    bottle = FakeBottle(recalibrate_codes=(2,))
+    session, _ = _session(bottle, now=datetime(2026, 11, 17, 9), goal=None)
+    with (
+        patch("custom_components.waterh.ble_session.RECALIBRATE_TIMEOUT_S", 0.05),
+        pytest.raises(BottleSyncError, match="started recalibrating but"),
+    ):
+        await session.recalibrate()
 
 
 async def test_silent_bottle_is_an_error() -> None:
@@ -402,6 +436,61 @@ async def test_next_sync_runs_one_interval_after_the_last(
     finally:
         for p in patches:
             p.stop()
+
+
+async def test_recalibrate_button(hass: HomeAssistant) -> None:
+    entry = await _create_bluetooth_entry(hass)
+    bottle = FakeBottle()
+    patches = _ble_patches(bottle, present=False)
+    for p in patches:
+        p.start()
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+
+    patches = _ble_patches(bottle, present=True)
+    patches.append(
+        patch("custom_components.waterh.button.persistent_notification.async_create")
+    )
+    started = [p.start() for p in patches]
+    notify = started[-1]
+    try:
+        await hass.services.async_call(
+            "button", "press", {"entity_id": "button.waterh_bottle_recalibrate_bottle"},
+            blocking=True,
+        )
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+    assert bottle.timeline == ["status", "recalibrate"]
+    assert bottle.disconnected
+    attrs = hass.states.get("sensor.waterh_bottle_bluetooth_sync").attributes
+    assert attrs["last_recalibration_result"] == "ok"
+    notify.assert_called_once()
+    assert "recalibrated" in notify.call_args.args[1]
+
+    # A failed recalibration shows an error and records why.
+    bottle = FakeBottle(recalibrate_codes=(2, 4))
+    patches = _ble_patches(bottle, present=True)
+    for p in patches:
+        p.start()
+    try:
+        from homeassistant.exceptions import HomeAssistantError
+
+        with pytest.raises(HomeAssistantError, match="recalibration failed"):
+            await hass.services.async_call(
+                "button", "press", {"entity_id": "button.waterh_bottle_recalibrate_bottle"},
+                blocking=True,
+            )
+    finally:
+        for p in patches:
+            p.stop()
+    attrs = hass.states.get("sensor.waterh_bottle_bluetooth_sync").attributes
+    assert "recalibration failed" in attrs["last_recalibration_result"]
 
 
 async def test_failed_sync_is_reported(hass: HomeAssistant) -> None:

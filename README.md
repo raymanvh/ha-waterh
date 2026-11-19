@@ -123,6 +123,7 @@ Bluetooth through Home Assistant only:
 | **Bluetooth sync** (diagnostic) | `Waiting for bottle`, `Syncing`, `OK`, `Not in range` or `Failed`. Attributes: `last_error` (why the last sync failed), `last_attempt`, `next_sync_after`, `via` (which adapter or proxy), `drinks_last_sync`, `cleared_last_sync`, and `steps` (what the last sync did, for troubleshooting). |
 | **Last Bluetooth sync** (diagnostic) | When the last successful sync finished. |
 | **Sync bottle now** | Syncs immediately, ignoring the interval. Shows an error if it can't. |
+| **Recalibrate bottle** (configuration) | Recalibrates the empty bottle, like **Recalibrate bottle** in the official app. See [Recalibrating the bottle](#recalibrating-the-bottle). |
 
 "Water today" uses WaterH's hydration value. For plain water it equals the volume; in account mode, other drink types may be weighted differently by WaterH, and the raw volume is in `liquid_total_ml`.
 
@@ -191,6 +192,24 @@ At least one of **Bluetooth bottle** and **Android app** has to be on.
 - **Update interval**: minutes between checks of your WaterH account (default 5). Drinks still only arrive once the official app has uploaded them.
 - **OAuth client ID / secret (advanced)**: leave empty. Only needed if WaterH changes the values built into their app. See [docs/API.md](docs/API.md#if-waterh-changes-their-app-credentials).
 - The webhook URL for the optional WaterH Sync battery sensors.
+
+## Recalibrating the bottle
+
+If the bottle's measurements drift (drinks recorded too large or too small), recalibrate it. This sends the same command as **Recalibrate bottle** in the official WaterH app, so you don't need the official app for it. Available with Bluetooth through Home Assistant.
+
+1. **Empty the bottle** completely.
+2. **Twist the cap back on.**
+3. **Stand it upright on a flat surface**, such as a table, and **don't hold it**.
+4. Make sure it's within range of a Bluetooth adapter or proxy, and that no phone is connected to it.
+5. Press **Recalibrate bottle** on the WaterH device page. The bottle's blue light flashes while it records its empty weight.
+
+When it's done you get a "WaterH bottle recalibrated" notification. If it fails, an error says why. The result is also kept in the `last_recalibration` and `last_recalibration_result` attributes of **Bluetooth sync**. Recalibrating doesn't touch drinks stored on the bottle.
+
+Good to know:
+
+- Pouring water out to empty the bottle may be recorded as a drink. If one shows up, remove it with `waterh.delete_drink` (the **Last drink** sensor's `drink_id` attribute).
+- WaterH says Boost bottles may still be up to 20% off when tracking water.
+- Recalibration is new in 0.4.0. The command and the bottle's replies come from the official app's code, but this integration hasn't run it on a real bottle yet.
 
 ## Actions
 

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from homeassistant.components import persistent_notification
 from homeassistant.components.button import ButtonEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import WaterHError
+from .ble_session import BottleSyncError
 from .const import DOMAIN
 from .coordinator import WaterHConfigEntry, WaterHCoordinator
 from .entity import waterh_device_info
@@ -24,6 +27,7 @@ async def async_setup_entry(
     entities: list[ButtonEntity] = [WaterHLogDrinkButton(coordinator)]
     if coordinator.ble is not None:
         entities.append(WaterHSyncNowButton(coordinator))
+        entities.append(WaterHRecalibrateButton(coordinator))
     async_add_entities(entities)
 
 
@@ -79,3 +83,39 @@ class WaterHLogDrinkButton(CoordinatorEntity[WaterHCoordinator], ButtonEntity):
                 translation_key="log_drink_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+
+
+class WaterHRecalibrateButton(CoordinatorEntity[WaterHCoordinator], ButtonEntity):
+    """Recalibrate the empty bottle, like the official app's Recalibrate bottle screen."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "recalibrate"
+    _attr_icon = "mdi:scale-balance"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator: WaterHCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.user_id}_recalibrate"
+        self._attr_device_info = waterh_device_info(coordinator)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.ble is not None
+
+    async def async_press(self) -> None:
+        ble = self.coordinator.ble
+        assert ble is not None
+        try:
+            await ble.async_recalibrate()
+        except BottleSyncError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="recalibrate_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        persistent_notification.async_create(
+            self.hass,
+            "Your WaterH bottle has been recalibrated and can be used normally.",
+            title="WaterH bottle recalibrated",
+            notification_id=f"{DOMAIN}_{self.coordinator.config_entry.entry_id}_recalibrated",
+        )

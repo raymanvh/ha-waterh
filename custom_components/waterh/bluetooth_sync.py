@@ -81,6 +81,8 @@ class BottleBluetooth:
         self.last_error: str | None = None
         self.last_result: SessionResult | None = None
         self.via: str | None = None
+        self.last_recalibration: datetime | None = None
+        self.last_recalibration_result: str | None = None
         self._task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
         self._cancel_timer: CALLBACK_TYPE | None = None
@@ -248,6 +250,68 @@ class BottleBluetooth:
             self._finish(STATUS_OK, None)
             return True
 
+    async def async_recalibrate(self) -> None:
+        """Recalibrate the (empty) bottle. Raises BottleSyncError with a message for the user.
+
+        Runs under the same lock as syncing, so it never overlaps a sync.
+        """
+        async with self._lock:
+            ble_device = bluetooth.async_ble_device_from_address(
+                self.hass, self.address, connectable=True
+            )
+            if ble_device is None:
+                self._recalibration_done(
+                    "The bottle isn't in range of a Bluetooth adapter or proxy that can "
+                    "connect. Pick it up to wake it, set it back down, and try again."
+                )
+            try:
+                async with asyncio.timeout(SESSION_TIMEOUT_S):
+                    client = await establish_connection(
+                        BleakClientWithServiceCache,
+                        ble_device,
+                        ble_device.name or "WaterH bottle",
+                        max_attempts=3,
+                    )
+                    try:
+                        session = BottleSession(
+                            client,
+                            now=lambda: dt_util.now().replace(tzinfo=None),
+                            goal_ml=None,
+                            update_bottle=False,
+                            store_drinks=_never_store,
+                        )
+                        status = await session.recalibrate()
+                    finally:
+                        try:
+                            await client.disconnect()
+                        except Exception:
+                            _LOGGER.debug("Disconnect from WaterH bottle failed", exc_info=True)
+            except BottleSyncError as err:
+                self._recalibration_done(str(err))
+            except BleakOutOfConnectionSlotsError:
+                self._recalibration_done(
+                    "Every Bluetooth adapter/proxy in range is busy. Try again in a minute."
+                )
+            except TimeoutError:
+                self._recalibration_done("The bottle took too long to answer.")
+            except Exception as err:  # Bleak/proxy errors come in many types.
+                _LOGGER.debug("WaterH recalibration failed", exc_info=True)
+                self._recalibration_done(
+                    f"Couldn't connect to the bottle: {err or type(err).__name__}. "
+                    "Make sure no phone is connected to it."
+                )
+            self.coordinator.async_set_bottle_from_status(status, None)
+            self._recalibration_done(None)
+
+    @callback
+    def _recalibration_done(self, error: str | None) -> None:
+        """Record the result; raises BottleSyncError when [error] is set."""
+        self.last_recalibration = dt_util.utcnow()
+        self.last_recalibration_result = error or "ok"
+        self.coordinator.async_update_listeners()
+        if error:
+            raise BottleSyncError(error)
+
     async def _connect_and_run(self, ble_device) -> SessionResult:
         client = await establish_connection(
             BleakClientWithServiceCache,
@@ -292,3 +356,8 @@ class BottleBluetooth:
         if error:
             _LOGGER.debug("WaterH Bluetooth sync: %s", error)
         self.coordinator.async_update_listeners()
+
+
+async def _never_store(records) -> int | None:
+    """Recalibration reads no drinks; nothing to save."""
+    return None

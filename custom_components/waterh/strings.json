@@ -176,6 +176,12 @@
           },
           "steps": {
             "name": "Steps"
+          },
+          "last_recalibration": {
+            "name": "Last recalibration"
+          },
+          "last_recalibration_result": {
+            "name": "Last recalibration result"
           }
         }
       },
@@ -217,6 +223,9 @@
       },
       "sync_now": {
         "name": "Sync bottle now"
+      },
+      "recalibrate": {
+        "name": "Recalibrate bottle"
       }
     },
     "binary_sensor": {
@@ -315,6 +324,9 @@
     },
     "sync_failed": {
       "message": "Couldn't sync the bottle: {error}"
+    },
+    "recalibrate_failed": {
+      "message": "Couldn't recalibrate the bottle: {error}"
     }
   }
 }

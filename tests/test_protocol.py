@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from custom_components.waterh.protocol import (
+    REQUEST_RECALIBRATE_EMPTY,
     REQUEST_STATUS,
     REQUEST_WATER_LOGS,
     BoostStatus,
@@ -17,6 +18,7 @@ from custom_components.waterh.protocol import (
     LogStart,
     NoLogs,
     Other,
+    RecalibrateReport,
     SettingsAck,
     clear_records,
     parse_packet,
@@ -129,3 +131,14 @@ def test_several_records_in_one_large_packet() -> None:
 
 def test_invalid_clock_gives_none() -> None:
     assert BottleTime(0, 0, 0, 0, 0, 0).to_naive() is None
+
+
+def test_recalibrate_command_and_reports() -> None:
+    # BottleConnection.requestRecalibrate(empty = true) in the official app.
+    assert REQUEST_RECALIBRATE_EMPTY.hex().upper() == "5054000302A101"
+    # RT report, tag 0xA1, code: 2 started, 3 succeeded, 4 failed.
+    assert parse_packet(bytes.fromhex("5254000302A102")) == RecalibrateReport(2)
+    assert parse_packet(bytes.fromhex("5254000302A103")) == RecalibrateReport(3)
+    assert parse_packet(bytes.fromhex("5254000302A104")) == RecalibrateReport(4)
+    # Other live reports are still ignored.
+    assert isinstance(parse_packet(bytes.fromhex("52540003020240")), Other)

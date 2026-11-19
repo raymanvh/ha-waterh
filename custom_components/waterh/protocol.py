@@ -26,6 +26,14 @@ NOTIFY_CHAR = "0000ffe4-0000-1000-8000-00805f9b34fb"
 REQUEST_STATUS = bytes.fromhex("47540001ff")
 REQUEST_WATER_LOGS = bytes.fromhex("4754000106")
 
+# Recalibrate with the bottle empty, as the official app's "Recalibrate bottle"
+# screen does (BottleConnection.requestRecalibrate, empty = true). The bottle
+# answers with RT reports tagged 0xA1; see RECALIBRATE_* below.
+REQUEST_RECALIBRATE_EMPTY = bytes.fromhex("5054000302A101")
+RECALIBRATE_STARTED = 2
+RECALIBRATE_SUCCEEDED = 3
+RECALIBRATE_FAILED = 4
+
 # Size of one stored record in a log reply.
 RECORD_SIZE = 13
 
@@ -151,6 +159,13 @@ class SettingsAck:
 
 
 @dataclass(frozen=True)
+class RecalibrateReport:
+    """Progress of a recalibration: 2 started, 3 succeeded, 4 failed."""
+
+    code: int
+
+
+@dataclass(frozen=True)
 class Other:
     """Anything not interpreted here (live reports, registration, ...)."""
 
@@ -159,7 +174,15 @@ class Other:
 
 
 Packet = (
-    BoostStatus | VitaStatus | LogStart | LogContinued | NoLogs | LogsFound | SettingsAck | Other
+    BoostStatus
+    | VitaStatus
+    | LogStart
+    | LogContinued
+    | NoLogs
+    | LogsFound
+    | SettingsAck
+    | RecalibrateReport
+    | Other
 )
 
 
@@ -259,8 +282,11 @@ def parse_packet(value: bytes) -> Packet:
         }
         return Other(descriptions.get(tag, "response"), hex_)  # type: ignore[arg-type]
 
-    # "RT": live reports (temperature, volume...). Not needed for syncing.
+    # "RT": live reports. Only recalibration progress (tag 0xA1) is used here;
+    # temperature, volume and the rest aren't needed for syncing.
     if b0 == 0x52 and b1 == 0x54:
+        if _u(value, 5) == 0xA1 and (code := _u(value, 6)) is not None:
+            return RecalibrateReport(code)
         return Other("live report", hex_)
 
     # "PT" with command 6: first packet of the stored log.

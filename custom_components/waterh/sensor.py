@@ -311,6 +311,10 @@ def _sync_attrs(ble: BottleBluetooth) -> dict[str, Any]:
         "drinks_last_sync": len(result.drinks) if result else None,
         "cleared_last_sync": result.cleared if result else None,
         "steps": result.steps[-20:] if result else None,
+        "last_recalibration": (
+            ble.last_recalibration.isoformat() if ble.last_recalibration else None
+        ),
+        "last_recalibration_result": ble.last_recalibration_result,
     }
 
 

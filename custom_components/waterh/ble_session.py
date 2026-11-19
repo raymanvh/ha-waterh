@@ -30,6 +30,10 @@ from typing import Any, Protocol
 
 from .protocol import (
     NOTIFY_CHAR,
+    RECALIBRATE_FAILED,
+    RECALIBRATE_STARTED,
+    RECALIBRATE_SUCCEEDED,
+    REQUEST_RECALIBRATE_EMPTY,
     REQUEST_STATUS,
     REQUEST_WATER_LOGS,
     WRITE_CHAR,
@@ -41,6 +45,7 @@ from .protocol import (
     NoLogs,
     Other,
     Packet,
+    RecalibrateReport,
     SettingsAck,
     VitaStatus,
     clear_records,
@@ -62,6 +67,8 @@ SETTINGS_TIMEOUT_S = 6.0
 LOGS_FIRST_TIMEOUT_S = 8.0
 LOGS_NEXT_TIMEOUT_S = 5.0
 ACK_TIMEOUT_S = 3.0
+# How long to wait for the bottle to finish recalibrating.
+RECALIBRATE_TIMEOUT_S = 30.0
 
 
 class BottleSyncError(Exception):
@@ -158,6 +165,50 @@ class BottleSession:
 
     async def run(self) -> SessionResult:
         """Run the session. Raises BottleSyncError when it can't finish."""
+        await self._start()
+        status = await self._read_status()
+        await self._maybe_write_settings(status)
+        complete = await self._read_logs()
+        await self._save_and_clear(status, complete)
+        return self.result
+
+    async def recalibrate(self) -> BoostStatus:
+        """Recalibrate the empty bottle, as the official app's Recalibrate screen does.
+
+        The bottle must be empty, capped, upright on a flat surface and not
+        held. Stored drinks aren't touched. Raises BottleSyncError on failure.
+        """
+        await self._start()
+        status = await self._read_status()
+        await self._send(REQUEST_RECALIBRATE_EMPTY, "recalibrate (empty bottle)")
+        started = False
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + RECALIBRATE_TIMEOUT_S
+        while (remaining := deadline - loop.time()) > 0:
+            report = await self._wait_for((RecalibrateReport,), remaining)
+            if report is None:
+                break
+            assert isinstance(report, RecalibrateReport)
+            if report.code == RECALIBRATE_STARTED:
+                started = True
+                self._step("bottle started recalibrating")
+            elif report.code == RECALIBRATE_SUCCEEDED:
+                self._step("bottle recalibrated")
+                return status
+            elif report.code == RECALIBRATE_FAILED:
+                raise BottleSyncError(
+                    "The bottle reported that recalibration failed. Make sure it's empty, "
+                    "the cap is on, and it's standing upright on a flat surface without "
+                    "being touched, then try again."
+                )
+        if started:
+            raise BottleSyncError(
+                "The bottle started recalibrating but didn't report a result. "
+                "Leave it still on a flat surface and try again."
+            )
+        raise BottleSyncError("The bottle didn't respond to the recalibrate request.")
+
+    async def _start(self) -> None:
         services = self._client.services
         write_char = services.get_characteristic(WRITE_CHAR) if services else None
         notify_char = services.get_characteristic(NOTIFY_CHAR) if services else None
@@ -170,12 +221,6 @@ class BottleSession:
             await self._client.start_notify(NOTIFY_CHAR, self._on_notify)
         except Exception as err:
             raise BottleSyncError(f"Couldn't subscribe to the bottle's replies: {err}") from err
-
-        status = await self._read_status()
-        await self._maybe_write_settings(status)
-        complete = await self._read_logs()
-        await self._save_and_clear(status, complete)
-        return self.result
 
     async def _read_status(self) -> BoostStatus:
         for attempt in (1, 2):
