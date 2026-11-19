@@ -43,6 +43,15 @@ CONF_VOLUME_UNIT: Final = "volume_unit"
 CONF_WEBHOOK_ID: Final = "webhook_id"
 # Set once the app has reported, so bottle entities are only created for app users.
 CONF_APP_REPORTED: Final = "app_reported"
+
+# Cloud (WaterH account) or local (drinks come only from the WaterH Sync app).
+CONF_MODE: Final = "mode"
+MODE_CLOUD: Final = "cloud"
+MODE_LOCAL: Final = "local"
+# Local mode: goal until the user sets one, and how long drinks are kept on disk.
+LOCAL_DEFAULT_GOAL_ML: Final = 2000
+LOCAL_KEEP_DAYS: Final = 30
+SOURCE_BOTTLE: Final = "waterh-bottle"
 UNIT_AUTO: Final = "auto"
 UNIT_APP: Final = "app"
 UNIT_ML: Final = "ml"

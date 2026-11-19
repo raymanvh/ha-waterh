@@ -1,7 +1,22 @@
 {
   "config": {
     "step": {
+      "reauth_confirm": {
+        "title": "Sign in to WaterH again",
+        "description": "WaterH no longer accepts the saved login for {email}. Enter your password to sign in again.",
+        "data": {
+          "password": "Password"
+        }
+      },
       "user": {
+        "title": "How should WaterH connect?",
+        "description": "Choose where your drinks come from. Local only needs the WaterH Sync Android app and no WaterH account.",
+        "menu_options": {
+          "cloud": "WaterH account (cloud)",
+          "local": "Local only (WaterH Sync app, no account)"
+        }
+      },
+      "cloud": {
         "title": "Sign in to WaterH",
         "description": "Use the email and password for your WaterH app account. If you signed up with Google or Facebook, set a password first with \"Forgot password\" in the WaterH app. Your password is only used to get a login token and is not stored.",
         "data": {
@@ -9,12 +24,19 @@
           "password": "Password"
         }
       },
-      "reauth_confirm": {
-        "title": "Sign in to WaterH again",
-        "description": "WaterH no longer accepts the saved login for {email}. Enter your password to sign in again.",
+      "local": {
+        "title": "Local only",
+        "description": "Drinks will come straight from your bottle through the WaterH Sync Android app and be stored in Home Assistant. Nothing is sent to WaterH, and no WaterH account is needed.\n\nDon't open the official WaterH app while using local mode: it takes the drinks off the bottle, and Home Assistant would never see them.",
         "data": {
-          "password": "Password"
+          "name": "Name"
+        },
+        "data_description": {
+          "name": "Used for the device and entity names, e.g. \"Bottle\" gives sensor.waterh_bottle_water_today."
         }
+      },
+      "local_finish": {
+        "title": "Connect the WaterH Sync app",
+        "description": "In WaterH Sync, choose **Local only** and paste this URL. Keep it private; anyone who has it can add drinks.\n\n{webhook_url}\n\nYou can find it again later under Configure.\n\nIf your phone should sync while away from home, use your external or Nabu Casa remote URL. Otherwise drinks wait on the bottle until you're home."
       }
     },
     "error": {
@@ -38,6 +60,13 @@
           "scan_interval": "Update interval",
           "client_id": "OAuth client ID (advanced)",
           "client_secret": "OAuth client secret (advanced)"
+        }
+      },
+      "local": {
+        "title": "WaterH (local)",
+        "description": "Webhook URL for the WaterH Sync app (keep it private):\n\n{webhook_url}",
+        "data": {
+          "volume_unit": "Volume unit"
         }
       }
     }

@@ -23,12 +23,15 @@ from .api import (
 )
 from .const import (
     CONF_APP_REPORTED,
+    CONF_MODE,
     CONF_SCAN_INTERVAL,
     CONF_USER_ID,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    MODE_LOCAL,
     SOURCE_MANUAL,
 )
+from .local import LocalDrinkStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,17 +95,29 @@ type WaterHConfigEntry = ConfigEntry[WaterHCoordinator]
 
 
 class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
-    """Polls today's drink log and the user profile."""
+    """Today's drinks and goal, from WaterH's cloud or (local mode) from Home Assistant.
+
+    Cloud mode polls WaterH. Local mode has no polling source: drinks arrive
+    from the WaterH Sync app through the webhook and live in [store]; the
+    1-minute interval only rolls the totals over at midnight.
+    """
 
     config_entry: WaterHConfigEntry
 
     def __init__(
-        self, hass: HomeAssistant, entry: WaterHConfigEntry, client: WaterHApiClient
+        self,
+        hass: HomeAssistant,
+        entry: WaterHConfigEntry,
+        client: WaterHApiClient | None,
+        store: LocalDrinkStore | None = None,
     ) -> None:
-        minutes = entry.options.get(CONF_SCAN_INTERVAL)
-        interval = (
-            timedelta(minutes=minutes) if minutes else DEFAULT_SCAN_INTERVAL
-        )
+        if store is not None:
+            interval = timedelta(minutes=1)
+        else:
+            minutes = entry.options.get(CONF_SCAN_INTERVAL)
+            interval = (
+                timedelta(minutes=minutes) if minutes else DEFAULT_SCAN_INTERVAL
+            )
         super().__init__(
             hass,
             _LOGGER,
@@ -111,7 +126,11 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
             update_interval=interval,
         )
         self.client = client
-        self.user_id: int = entry.data[CONF_USER_ID]
+        self.store = store
+        # Cloud: the WaterH user id. Local: the entry id (keeps unique ids distinct).
+        self.user_id: int | str = (
+            f"local_{entry.entry_id}" if store is not None else entry.data[CONF_USER_ID]
+        )
         # Settings for the "Log drink" button (kept in Home Assistant only).
         self.quick_amount_ml: int = 250
         self.quick_drink_type: str = "water"
@@ -138,7 +157,71 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
                 cb()
         self.async_update_listeners()
 
+    @property
+    def is_local(self) -> bool:
+        return self.store is not None
+
+    # ---- Actions shared by the button, goal number and services ----------
+    # Cloud errors surface as WaterHError for the callers to translate.
+
+    async def async_add_drink(
+        self, amount_ml: int, water_type: str, when: datetime | None = None
+    ) -> None:
+        if self.store is not None:
+            self.store.add([self.store.manual_drink(amount_ml, water_type, when)])
+            await self.store.async_save()
+            self.async_set_updated_data(self._local_data())
+            return
+        assert self.client is not None
+        await self.client.async_add_drink(self.user_id, amount_ml, water_type, when)
+        await self.async_request_refresh()
+
+    async def async_delete_drink(self, drink_id: str) -> None:
+        if self.store is not None:
+            if not self.store.remove(drink_id):
+                raise WaterHError(f"No drink with id {drink_id}")
+            await self.store.async_save()
+            self.async_set_updated_data(self._local_data())
+            return
+        assert self.client is not None
+        await self.client.async_delete_drink(drink_id)
+        await self.async_request_refresh()
+
+    async def async_set_goal(self, goal_ml: int) -> None:
+        if self.store is not None:
+            self.store.goal_ml = goal_ml
+            await self.store.async_save()
+            self.async_set_updated_data(self._local_data())
+            return
+        assert self.client is not None
+        await self.client.async_set_goal(goal_ml)
+        await self.async_request_refresh()
+
+    async def async_receive_bottle_drinks(self, drinks: list[WaterHDrink]) -> int:
+        """Local mode: store drinks from the app (saved before returning). Returns new count."""
+        assert self.store is not None
+        added = self.store.add(drinks)
+        self.store.last_report = dt_util.utcnow()
+        await self.store.async_save()
+        self.async_set_updated_data(self._local_data())
+        return added
+
+    def _local_data(self) -> WaterHData:
+        assert self.store is not None
+        day_start = dt_util.start_of_local_day(dt_util.now())
+        day_end = day_start + timedelta(days=1)
+        return WaterHData(
+            drinks=self.store.drinks_between(day_start, day_end),
+            goal_ml=self.store.goal_ml,
+            profile={"first_name": self.config_entry.data.get("name") or "Bottle"},
+            day_start=day_start,
+            fetched_at=self.store.last_report,
+        )
+
     async def _async_update_data(self) -> WaterHData:
+        if self.store is not None:
+            return self._local_data()
+        assert self.client is not None
         now = dt_util.now()
         day_start = dt_util.start_of_local_day(now)
         day_end = day_start + timedelta(days=1)

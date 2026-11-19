@@ -12,7 +12,8 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
-from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
+from homeassistant.components import webhook
+from homeassistant.const import CONF_EMAIL, CONF_NAME, CONF_PASSWORD, CONF_WEBHOOK_ID
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
@@ -37,6 +38,7 @@ from .const import (
     CONF_ACCESS_TOKEN,
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
+    CONF_MODE,
     CONF_REFRESH_TOKEN,
     CONF_SCAN_INTERVAL,
     CONF_TOKEN_EXPIRES_AT,
@@ -48,10 +50,13 @@ from .const import (
     DOMAIN,
     MAX_SCAN_INTERVAL_MINUTES,
     MIN_SCAN_INTERVAL_MINUTES,
+    MODE_CLOUD,
+    MODE_LOCAL,
+    UNIT_APP,
     UNIT_AUTO,
     VOLUME_UNITS,
 )
-from .webhook import webhook_urls
+from .webhook import webhook_urls, webhook_urls_for_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,6 +107,47 @@ class WaterHConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Choose WaterH's cloud or local-only (WaterH Sync app)."""
+        return self.async_show_menu(step_id="user", menu_options=[MODE_CLOUD, MODE_LOCAL])
+
+    async def async_step_local(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Local only: name the bottle; no WaterH account needed."""
+        if user_input is not None:
+            self._local_name = user_input[CONF_NAME].strip() or "Bottle"
+            self._local_webhook_id = webhook.async_generate_id()
+            await self.async_set_unique_id(f"local_{self._local_webhook_id}")
+            return await self.async_step_local_finish()
+        return self.async_show_form(
+            step_id="local",
+            data_schema=vol.Schema({vol.Required(CONF_NAME, default="Bottle"): TextSelector()}),
+        )
+
+    async def async_step_local_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the webhook URL to paste into the app, then create the entry."""
+        if user_input is not None:
+            return self.async_create_entry(
+                title=f"{self._local_name} (local)",
+                data={
+                    CONF_MODE: MODE_LOCAL,
+                    CONF_NAME: self._local_name,
+                    CONF_WEBHOOK_ID: self._local_webhook_id,
+                },
+            )
+        return self.async_show_form(
+            step_id="local_finish",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "webhook_url": webhook_urls_for_id(self.hass, self._local_webhook_id)
+            },
+        )
+
+    async def async_step_cloud(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Ask for WaterH email and password."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -124,13 +170,14 @@ class WaterHConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title=email,
                     data={
+                        CONF_MODE: MODE_CLOUD,
                         CONF_EMAIL: email,
                         CONF_USER_ID: int(profile["id"]),
                         **_token_data(tokens),
                     },
                 )
         return self.async_show_form(
-            step_id="user", data_schema=USER_SCHEMA, errors=errors
+            step_id="cloud", data_schema=USER_SCHEMA, errors=errors
         )
 
     async def async_step_reauth(
@@ -199,6 +246,8 @@ class WaterHOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        if self.config_entry.data.get(CONF_MODE) == MODE_LOCAL:
+            return await self.async_step_local(user_input)
         if user_input is not None:
             cleaned = {
                 CONF_VOLUME_UNIT: user_input.get(CONF_VOLUME_UNIT, UNIT_AUTO),
@@ -250,6 +299,37 @@ class WaterHOptionsFlow(OptionsFlow):
         )
         return self.async_show_form(
             step_id="init",
+            data_schema=schema,
+            description_placeholders={
+                "webhook_url": webhook_urls(self.hass, self.config_entry)
+            },
+        )
+
+    async def async_step_local(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Local mode: only the display unit (no polling or WaterH account)."""
+        if user_input is not None:
+            return self.async_create_entry(
+                data={CONF_VOLUME_UNIT: user_input.get(CONF_VOLUME_UNIT, UNIT_AUTO)}
+            )
+        options = self.config_entry.options
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_VOLUME_UNIT,
+                    default=options.get(CONF_VOLUME_UNIT, UNIT_AUTO),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[u for u in VOLUME_UNITS if u != UNIT_APP],
+                        mode=SelectSelectorMode.DROPDOWN,
+                        translation_key=CONF_VOLUME_UNIT,
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="local",
             data_schema=schema,
             description_placeholders={
                 "webhook_url": webhook_urls(self.hass, self.config_entry)

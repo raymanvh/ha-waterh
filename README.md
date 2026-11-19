@@ -5,12 +5,15 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
 [![Validate](https://github.com/raymanvh/ha-waterh/actions/workflows/validate.yml/badge.svg)](https://github.com/raymanvh/ha-waterh/actions/workflows/validate.yml)
 
-Unofficial Home Assistant integration for [WaterH](https://www.waterh.com) smart water bottles (Boost, Vita, BoostLite and others). It reads your hydration log from the WaterH cloud, the same data the WaterH app shows, so your water intake appears in Home Assistant without Bluetooth or Health Connect.
+Unofficial Home Assistant integration for [WaterH](https://www.waterh.com) smart water bottles (Boost, Vita, BoostLite and others). Two ways to run it:
 
-> **Not affiliated with WaterH.** This uses WaterH's private app API, found by examining the official Android app. It can break at any time if WaterH changes their API. See [docs/API.md](docs/API.md) for how it works.
+- **Cloud**: reads your hydration log from your WaterH account, the same data the WaterH app shows. Works with any phone.
+- **Local only**: no WaterH account at all. The [WaterH Sync Android app](https://github.com/raymanvh/waterh-sync-android) reads drinks off the bottle over Bluetooth and sends them straight to Home Assistant. See [Local mode](#local-mode-no-waterh-account).
+
+> **Not affiliated with WaterH.** Cloud mode uses WaterH's private app API, found by examining the official Android app. It can break at any time if WaterH changes their API. See [docs/API.md](docs/API.md) for how it works.
 
 > [!IMPORTANT]
-> **Drinks reach Home Assistant only after they reach WaterH's servers.** The bottle stores each drink on board and hands it over only when the **official WaterH app is opened** on your phone. The official app doesn't sync in the background, so until you open it, new drinks won't show up here. This integration works with just the official app; you'll simply see drinks once you've opened it.
+> **In cloud mode, drinks reach Home Assistant only after they reach WaterH's servers.** The bottle stores each drink on board and hands it over only when the **official WaterH app is opened** on your phone. The official app doesn't sync in the background, so until you open it, new drinks won't show up here. This integration works with just the official app; you'll simply see drinks once you've opened it.
 >
 > **On Android?** [**WaterH Sync**](#want-it-hands-free-waterh-sync-for-android) syncs the bottle in the background for you, and adds battery and charging sensors.
 
@@ -92,7 +95,7 @@ Copy `custom_components/waterh` into your Home Assistant `config/custom_componen
 
 ## Setup
 
-**Settings → Devices & services → Add integration → WaterH**, then enter the email and password for your WaterH account.
+**Settings → Devices & services → Add integration → WaterH**, then choose **WaterH account (cloud)** and enter the email and password for your WaterH account. For local mode, see [below](#local-mode-no-waterh-account).
 
 - **Signed up with Google or Facebook?** Those accounts have no WaterH password. Use **Forgot password** in the WaterH app (or on the login screen) to set one, then use it here. You can still sign in with Google in the app.
 - Your password is used once to get a login token and is **not stored**. Home Assistant keeps the token and refreshes it automatically. If WaterH ever rejects it, Home Assistant asks you to sign in again.
@@ -106,6 +109,27 @@ Copy `custom_components/waterh` into your Home Assistant `config/custom_componen
   - *Milliliters* or *Fluid ounces*: always that unit.
 - **Update interval**: minutes between updates (default 5).
 - **OAuth client ID / secret (advanced)**: leave these empty. They're only needed if WaterH changes the values built into their app. See [If WaterH changes their app credentials](docs/API.md#if-waterh-changes-their-app-credentials).
+
+## Local mode (no WaterH account)
+
+In local mode Home Assistant is where your drinks live. The [WaterH Sync](https://github.com/raymanvh/waterh-sync-android) Android app reads them off the bottle over Bluetooth and posts them to this integration; nothing goes to WaterH's servers, and you never sign in to WaterH.
+
+**Setup**
+
+1. **Add integration → WaterH → Local only**, give it a name (e.g. *Bottle*), and copy the webhook URL it shows.
+2. Install [WaterH Sync](https://github.com/raymanvh/waterh-sync-android/releases), choose **Local only**, and paste the URL.
+3. Set your daily goal on the **Daily goal** control in Home Assistant. The app writes it to the bottle on every sync.
+
+You get the same entities as in cloud mode (Water today, Goal progress, Drinks today, Last drink, the Log drink button, Daily goal, and the actions), plus battery and charging.
+
+**Good to know**
+
+- **Keep the official WaterH app off the bottle.** If it connects, it takes the drinks off the bottle and Home Assistant never sees them.
+- **Nothing is lost if Home Assistant can't be reached.** The app clears drinks from the bottle only after Home Assistant has saved them. Until then they stay on the bottle and go up on the next sync. Reports sent twice are recognized and counted once.
+- **Away from home**, use your external or Nabu Casa remote URL so drinks arrive from anywhere. With a local address, they wait on the bottle until you're home. The bottle's storage is finite, though how many drinks it holds isn't known.
+- **History** lives in Home Assistant's recorder like any other sensor. The integration keeps the last 30 days of individual drinks on disk.
+- **Volume unit** in local mode offers Automatic, Milliliters or Fluid ounces (there's no WaterH app setting to follow).
+- To move between cloud and local, add a new WaterH entry in the mode you want and remove the old one. Drinks don't carry over between modes.
 
 ## Actions
 

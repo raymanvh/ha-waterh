@@ -18,7 +18,7 @@ def waterh_device_info(coordinator: WaterHCoordinator) -> DeviceInfo:
         identifiers={(DOMAIN, str(coordinator.user_id))},
         name=f"WaterH {name}".strip() if name else "WaterH",
         manufacturer="WaterH",
-        model="Hydration account",
+        model="WaterH Sync (local)" if coordinator.is_local else "Hydration account",
         entry_type=DeviceEntryType.SERVICE,
-        configuration_url="https://www.waterh.com",
+        configuration_url=None if coordinator.is_local else "https://www.waterh.com",
     )

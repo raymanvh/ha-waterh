@@ -1,4 +1,4 @@
-"""The WaterH integration (unofficial cloud API)."""
+"""The WaterH integration: WaterH's cloud, or local-only via the WaterH Sync app."""
 
 from __future__ import annotations
 
@@ -13,13 +13,16 @@ from .const import (
     CONF_ACCESS_TOKEN,
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
+    CONF_MODE,
     CONF_REFRESH_TOKEN,
     CONF_TOKEN_EXPIRES_AT,
     DEFAULT_CLIENT_ID,
     DEFAULT_CLIENT_SECRET,
     DOMAIN,
+    MODE_LOCAL,
 )
 from .coordinator import WaterHConfigEntry, WaterHCoordinator
+from .local import LocalDrinkStore
 from .services import async_setup_services
 from .webhook import async_register_webhook
 
@@ -49,6 +52,34 @@ def client_credentials(entry: WaterHConfigEntry) -> tuple[str, str]:
 
 async def async_setup_entry(hass: HomeAssistant, entry: WaterHConfigEntry) -> bool:
     """Set up WaterH from a config entry."""
+    if entry.data.get(CONF_MODE) == MODE_LOCAL:
+        store = LocalDrinkStore(hass, entry.entry_id)
+        await store.async_load()
+        coordinator = WaterHCoordinator(hass, entry, None, store)
+    else:
+        coordinator = _cloud_coordinator(hass, entry)
+    await coordinator.async_config_entry_first_refresh()
+    entry.runtime_data = coordinator
+    # Receives reports (and, in local mode, drinks) from the WaterH Sync app.
+    async_register_webhook(hass, entry)
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Token refreshes also update the entry, so only reload when the options
+    # themselves change.
+    options_at_setup = dict(entry.options)
+
+    async def _async_reload_on_options(
+        hass: HomeAssistant, updated: WaterHConfigEntry
+    ) -> None:
+        if dict(updated.options) != options_at_setup:
+            await hass.config_entries.async_reload(updated.entry_id)
+
+    entry.async_on_unload(entry.add_update_listener(_async_reload_on_options))
+    return True
+
+
+def _cloud_coordinator(hass: HomeAssistant, entry: WaterHConfigEntry) -> WaterHCoordinator:
     client_id, client_secret = client_credentials(entry)
 
     async def _save_tokens(tokens: WaterHTokens) -> None:
@@ -75,26 +106,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaterHConfigEntry) -> bo
         time_zone=hass.config.time_zone,
     )
 
-    coordinator = WaterHCoordinator(hass, entry, client)
-    await coordinator.async_config_entry_first_refresh()
-    entry.runtime_data = coordinator
-    # Receives battery/charging reports from the optional Android app.
-    async_register_webhook(hass, entry)
-
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    # Token refreshes also update the entry, so only reload when the options
-    # themselves change.
-    options_at_setup = dict(entry.options)
-
-    async def _async_reload_on_options(
-        hass: HomeAssistant, updated: WaterHConfigEntry
-    ) -> None:
-        if dict(updated.options) != options_at_setup:
-            await hass.config_entries.async_reload(updated.entry_id)
-
-    entry.async_on_unload(entry.add_update_listener(_async_reload_on_options))
-    return True
+    return WaterHCoordinator(hass, entry, client)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: WaterHConfigEntry) -> bool:

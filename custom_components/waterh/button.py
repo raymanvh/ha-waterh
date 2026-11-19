@@ -38,8 +38,7 @@ class WaterHLogDrinkButton(CoordinatorEntity[WaterHCoordinator], ButtonEntity):
     async def async_press(self) -> None:
         coordinator = self.coordinator
         try:
-            await coordinator.client.async_add_drink(
-                coordinator.user_id,
+            await coordinator.async_add_drink(
                 coordinator.quick_amount_ml,
                 coordinator.quick_drink_type,
             )
@@ -49,4 +48,3 @@ class WaterHLogDrinkButton(CoordinatorEntity[WaterHCoordinator], ButtonEntity):
                 translation_key="log_drink_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
-        await coordinator.async_request_refresh()

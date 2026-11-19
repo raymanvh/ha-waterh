@@ -1,13 +1,17 @@
-"""Webhook the WaterH Sync Android app posts bottle status to.
+"""Webhook the WaterH Sync Android app posts to.
 
-The WaterH cloud has no battery or charging data; the bottle only sends them
-over Bluetooth. The optional Android app reads them during each sync and
-posts them here.
+Every mode: bottle status (battery, charging, firmware), which WaterH's cloud
+doesn't have. Local mode: also the drinks read off the bottle, which are
+stored before the reply so the app only clears the bottle once they're safe.
+
+Reply: {"ok", "mode", "accepted", "goal_ml", "unit"}. The app uses goal_ml
+for the bottle and unit for display. An empty JSON object just fetches those.
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 import voluptuous as vol
 from aiohttp import web
@@ -17,19 +21,35 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.network import NoURLAvailableError
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .api import WaterHDrink
+from .const import DOMAIN, MODE_CLOUD, MODE_LOCAL, SOURCE_BOTTLE
 from .coordinator import BottleStatus, WaterHConfigEntry
+from .local import bottle_drink_id
+from .units import entry_unit
 
 _LOGGER = logging.getLogger(__name__)
 
+DRINK_SCHEMA = vol.Schema(
+    {
+        # Epoch milliseconds, converted on the phone from the bottle's local clock.
+        vol.Required("time"): vol.All(vol.Coerce(int), vol.Range(min=1_500_000_000_000)),
+        vol.Required("amount_ml"): vol.All(vol.Coerce(int), vol.Range(min=1, max=5000)),
+        vol.Optional("tds"): vol.Any(None, vol.Coerce(int)),
+        vol.Optional("temperature"): vol.Any(None, vol.Coerce(float)),
+    },
+    extra=vol.REMOVE_EXTRA,
+)
+
 PAYLOAD_SCHEMA = vol.Schema(
     {
-        vol.Required("battery"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+        vol.Optional("battery"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
         vol.Optional("charging"): vol.Any(None, bool),
         vol.Optional("firmware"): vol.Any(None, vol.All(str, vol.Length(max=32))),
         vol.Optional("today_ml"): vol.Any(
             None, vol.All(vol.Coerce(int), vol.Range(min=0, max=100_000))
         ),
+        vol.Optional("source"): vol.All(str, vol.Length(max=64)),
+        vol.Optional("drinks"): vol.All([DRINK_SCHEMA], vol.Length(max=5000)),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -54,16 +74,57 @@ def async_register_webhook(hass: HomeAssistant, entry: WaterHConfigEntry) -> Non
         except (ValueError, vol.Invalid) as err:
             _LOGGER.debug("Rejected WaterH Sync report: %s", err)
             return web.json_response({"ok": False, "error": "invalid payload"}, status=400)
-        entry.runtime_data.async_set_bottle(
-            BottleStatus(
-                battery=payload["battery"],
-                charging=payload.get("charging"),
-                firmware=payload.get("firmware"),
-                today_ml=payload.get("today_ml"),
-                reported_at=dt_util.utcnow(),
+        coordinator = entry.runtime_data
+        mode = MODE_LOCAL if coordinator.is_local else MODE_CLOUD
+        accepted = 0
+
+        if "drinks" in payload:
+            if not coordinator.is_local:
+                # Never let the app clear the bottle for drinks we can't keep.
+                return web.json_response(
+                    {"ok": False, "mode": mode, "error": "This WaterH integration is in cloud mode; drinks go to WaterH."},
+                    status=409,
+                )
+            source = payload.get("source") or SOURCE_BOTTLE
+            drinks = []
+            for d in payload["drinks"]:
+                created = datetime.fromtimestamp(d["time"] / 1000, tz=dt_util.UTC)
+                drinks.append(
+                    WaterHDrink(
+                        id=bottle_drink_id(created, d["amount_ml"]),
+                        water_amount=d["amount_ml"],
+                        amount=d["amount_ml"],
+                        created=created,
+                        source_id=source,
+                        mac_address=None,
+                        water_type="water",
+                        temperature=d.get("temperature"),
+                        tds=d.get("tds"),
+                    )
+                )
+            accepted = await coordinator.async_receive_bottle_drinks(drinks)
+
+        if "battery" in payload:
+            coordinator.async_set_bottle(
+                BottleStatus(
+                    battery=payload["battery"],
+                    charging=payload.get("charging"),
+                    firmware=payload.get("firmware"),
+                    today_ml=payload.get("today_ml"),
+                    reported_at=dt_util.utcnow(),
+                )
             )
+
+        data = coordinator.data
+        return web.json_response(
+            {
+                "ok": True,
+                "mode": mode,
+                "accepted": accepted,
+                "goal_ml": data.goal_ml if data else None,
+                "unit": entry_unit(hass, entry),
+            }
         )
-        return web.json_response({"ok": True})
 
     webhook.async_register(
         hass,
@@ -82,6 +143,11 @@ def webhook_urls(hass: HomeAssistant, entry: WaterHConfigEntry) -> str:
     webhook_id = entry.data.get(CONF_WEBHOOK_ID)
     if not webhook_id:
         return "(available after the integration has loaded once)"
+    return webhook_urls_for_id(hass, webhook_id)
+
+
+def webhook_urls_for_id(hass: HomeAssistant, webhook_id: str) -> str:
+    """Human-readable webhook URL(s) for a webhook id."""
     urls: list[str] = []
     for kwargs in ({"allow_internal": False}, {"allow_external": False}):
         try:

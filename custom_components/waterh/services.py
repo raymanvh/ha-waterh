@@ -87,8 +87,8 @@ def async_setup_services(hass: HomeAssistant) -> None:
         if when is not None and when.tzinfo is None:
             when = when.replace(tzinfo=dt_util.get_default_time_zone())
         try:
-            await coordinator.client.async_add_drink(
-                coordinator.user_id, amount_ml, call.data[ATTR_DRINK_TYPE], when
+            await coordinator.async_add_drink(
+                amount_ml, call.data[ATTR_DRINK_TYPE], when
             )
         except WaterHError as err:
             raise HomeAssistantError(
@@ -96,20 +96,18 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 translation_key="log_drink_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
-        await coordinator.async_request_refresh()
 
     async def delete_drink(call: ServiceCall) -> None:
         entry = _get_entry(hass, call)
         coordinator = entry.runtime_data
         try:
-            await coordinator.client.async_delete_drink(call.data[ATTR_DRINK_ID])
+            await coordinator.async_delete_drink(call.data[ATTR_DRINK_ID])
         except WaterHError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="delete_drink_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
-        await coordinator.async_request_refresh()
 
     hass.services.async_register(
         DOMAIN, SERVICE_LOG_DRINK, log_drink, schema=LOG_DRINK_SCHEMA

@@ -76,14 +76,13 @@ class WaterHGoalNumber(_WaterHNumberBase, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         goal_ml = to_ml(value, self._unit)
         try:
-            await self.coordinator.client.async_set_goal(goal_ml)
+            await self.coordinator.async_set_goal(goal_ml)
         except WaterHError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="set_goal_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
-        await self.coordinator.async_request_refresh()
 
 
 class WaterHQuickAmountNumber(_WaterHNumberBase, RestoreNumber):
