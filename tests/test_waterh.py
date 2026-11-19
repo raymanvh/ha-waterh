@@ -358,6 +358,11 @@ async def test_goal_number_limits_align_with_step(
     assert attrs["min"] == int(attrs["min"])
     assert (160 - attrs["min"]) % attrs["step"] == 0
 
+    # Drink amount accepts one decimal in oz (e.g. 74.6), whole mL in metric.
+    amount = hass.states.get("number.waterh_test_user_drink_amount").attributes
+    assert amount["step"] == 0.1
+    assert round((74.6 - amount["min"]) / amount["step"], 6) == 745
+
 
 async def test_log_drink_button(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker

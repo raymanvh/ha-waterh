@@ -22,7 +22,7 @@ from .units import entry_unit, from_ml, ha_unit, to_ml
 # accepts min + n * step), so they are whole numbers in each unit rather than
 # converted from the other unit.
 GOAL_LIMITS = {UNIT_OZ: (17, 338, 1), "ml": (500, 10000, 10)}
-QUICK_LIMITS = {UNIT_OZ: (0.5, 100, 0.5), "ml": (5, 3000, 5)}
+QUICK_LIMITS = {UNIT_OZ: (0.1, 100, 0.1), "ml": (1, 3000, 1)}
 QUICK_DEFAULT = {UNIT_OZ: 8.0, "ml": 250.0}
 
 
