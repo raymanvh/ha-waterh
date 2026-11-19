@@ -206,6 +206,13 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         self.async_set_updated_data(self._local_data())
         return added
 
+    async def async_note_app_contact(self) -> None:
+        """Local mode: record that the app checked in (drives the Last update sensor)."""
+        assert self.store is not None
+        self.store.last_report = dt_util.utcnow()
+        await self.store.async_save()
+        self.async_set_updated_data(self._local_data())
+
     def _local_data(self) -> WaterHData:
         assert self.store is not None
         day_start = dt_util.start_of_local_day(dt_util.now())

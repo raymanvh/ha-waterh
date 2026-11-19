@@ -516,6 +516,9 @@ async def test_local_mode_drinks_from_app(
     # Hello: empty payload returns goal and unit.
     hello = await (await client.post(f"/api/webhook/{webhook_id}", json={})).json()
     assert hello["ok"] and hello["mode"] == "local" and hello["goal_ml"] == 2000
+    await hass.async_block_till_done()
+    # Any check-in from the app counts as an update in local mode.
+    assert hass.states.get("sensor.waterh_bottle_last_update").state == "2026-11-19T02:00:00+00:00"
 
     t1 = int(datetime(2026, 11, 18, 19, 1, 29, tzinfo=timezone(timedelta(hours=-6))).timestamp() * 1000)
     t2 = t1 + 9_000

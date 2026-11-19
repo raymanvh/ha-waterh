@@ -78,6 +78,10 @@ def async_register_webhook(hass: HomeAssistant, entry: WaterHConfigEntry) -> Non
         mode = MODE_LOCAL if coordinator.is_local else MODE_CLOUD
         accepted = 0
 
+        if coordinator.is_local and "drinks" not in payload:
+            # Any check-in counts as an update in local mode; drink reports record it themselves.
+            await coordinator.async_note_app_contact()
+
         if "drinks" in payload:
             if not coordinator.is_local:
                 # Never let the app clear the bottle for drinks we can't keep.
