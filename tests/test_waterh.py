@@ -607,3 +607,67 @@ async def test_cloud_mode_refuses_drinks(
     )
     assert resp.status == 409
     assert (await resp.json())["mode"] == "cloud"
+
+
+async def test_diagnostics_redact_personal_data(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Account id, email, names, tokens and webhook id never reach diagnostics."""
+    from custom_components.waterh.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+
+    aioclient_mock.get(
+        SELF_URL,
+        json={
+            **SELF_RESPONSE,
+            "last_name": "Person",
+            "phone": "555-0100",
+            "new_field_from_waterh": "something personal",
+            "settings": {"unit": "oz"},
+        },
+    )
+    aioclient_mock.get(
+        LOG_URL,
+        json=log_response([(dt_util.utcnow().isoformat(), 250, "waterh-bottle")]),
+    )
+    entry = _entry(expires_at=dt_util.utcnow().timestamp() + 86400)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    text = str(diag)
+    for secret in (
+        "123456",
+        "user@example.com",
+        "Test User",
+        "Person",
+        "555-0100",
+        "something personal",
+        "access-1",
+        "refresh-1",
+        "aa:bb:cc:dd:ee:ff",
+    ):
+        assert secret not in text, secret
+    assert diag["profile"]["goal"] == 4347
+    assert diag["profile"]["unit"] == "oz"
+    assert "new_field_from_waterh" in diag["profile"]["keys"]
+    assert diag["today"]["total_ml"] == 250
+
+
+async def test_diagnostics_local_mode_redacts_name(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The user-typed bottle name and webhook id are redacted in local mode."""
+    from custom_components.waterh.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+
+    entry = await _setup_local(hass)
+    entry = hass.config_entries.async_get_entry(entry.entry_id)
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    assert diag["entry"]["data"]["name"] == "**REDACTED**"
+    assert diag["entry"]["data"]["webhook_id"] == "**REDACTED**"
+    assert entry.data["webhook_id"] not in str(diag)
+    assert entry.data["name"] not in str(diag)
