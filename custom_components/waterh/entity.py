@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.device_registry import (
+    CONNECTION_BLUETOOTH,
+    DeviceEntryType,
+    DeviceInfo,
+)
 
 from .const import DOMAIN
 from .coordinator import WaterHCoordinator
@@ -18,7 +22,19 @@ def waterh_device_info(coordinator: WaterHCoordinator) -> DeviceInfo:
         identifiers={(DOMAIN, str(coordinator.user_id))},
         name=f"WaterH {name}".strip() if name else "WaterH",
         manufacturer="WaterH",
-        model="WaterH Sync (local)" if coordinator.is_local else "Hydration account",
-        entry_type=DeviceEntryType.SERVICE,
+        model=(
+            "Bottle via Home Assistant Bluetooth"
+            if coordinator.ble is not None
+            else "WaterH Sync (local)"
+            if coordinator.is_local
+            else "Hydration account"
+        ),
+        # A Bluetooth-synced bottle is a real device; the account and app modes are services.
+        entry_type=None if coordinator.ble is not None else DeviceEntryType.SERVICE,
+        connections=(
+            {(CONNECTION_BLUETOOTH, coordinator.ble.address)}
+            if coordinator.ble is not None
+            else set()
+        ),
         configuration_url=None if coordinator.is_local else "https://www.waterh.com",
     )

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
     RestoreSensor,
@@ -25,10 +25,14 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_APP_REPORTED, CONF_VOLUME_UNIT, UNIT_AUTO
+from .const import CONF_APP_REPORTED, CONF_VOLUME_UNIT, SYNC_STATUSES, UNIT_AUTO
 from .coordinator import BottleStatus, WaterHConfigEntry, WaterHCoordinator, WaterHData
 from .entity import waterh_device_info
 from .units import ha_unit, resolve_unit
+
+if TYPE_CHECKING:
+    # Imported only for typing: Bluetooth libraries load only when Bluetooth sync is used.
+    from .bluetooth_sync import BottleBluetooth
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -142,9 +146,15 @@ async def async_setup_entry(
     async_add_entities(
         WaterHSensor(coordinator, description, option) for description in SENSORS
     )
+    if coordinator.ble is not None:
+        async_add_entities(
+            WaterHBluetoothSensor(coordinator, description)
+            for description in BLUETOOTH_SENSORS
+        )
 
-    # Battery and firmware only come from the WaterH Sync Android app, so these
-    # entities appear once it has reported for the first time.
+    # Battery and firmware are only known once the bottle has been read over
+    # Bluetooth (by Home Assistant or the Android app), so these entities
+    # appear after the first successful read.
     @callback
     def _add_bottle_sensors() -> None:
         async_add_entities(
@@ -281,3 +291,74 @@ class WaterHBottleSensor(CoordinatorEntity[WaterHCoordinator], RestoreSensor):
         if bottle is not None:
             return self.entity_description.value_fn(bottle)
         return self._restored
+
+
+@dataclass(frozen=True, kw_only=True)
+class WaterHBluetoothSensorDescription(SensorEntityDescription):
+    """Describes a sensor about Home Assistant's own Bluetooth sync."""
+
+    value_fn: Callable[[BottleBluetooth], Any]
+    attrs_fn: Callable[[BottleBluetooth], dict[str, Any]] | None = None
+
+
+def _sync_attrs(ble: BottleBluetooth) -> dict[str, Any]:
+    result = ble.last_result
+    return {
+        "last_attempt": ble.last_attempt.isoformat() if ble.last_attempt else None,
+        "next_sync_after": ble.next_due.isoformat() if ble.next_due else None,
+        "last_error": ble.last_error,
+        "via": ble.via,
+        "drinks_last_sync": len(result.drinks) if result else None,
+        "cleared_last_sync": result.cleared if result else None,
+        "steps": result.steps[-20:] if result else None,
+    }
+
+
+BLUETOOTH_SENSORS: tuple[WaterHBluetoothSensorDescription, ...] = (
+    WaterHBluetoothSensorDescription(
+        key="bluetooth_sync",
+        translation_key="bluetooth_sync",
+        device_class=SensorDeviceClass.ENUM,
+        options=SYNC_STATUSES,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda b: b.status,
+        attrs_fn=_sync_attrs,
+    ),
+    WaterHBluetoothSensorDescription(
+        key="last_bluetooth_sync",
+        translation_key="last_bluetooth_sync",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda b: b.last_success,
+    ),
+)
+
+
+class WaterHBluetoothSensor(CoordinatorEntity[WaterHCoordinator], SensorEntity):
+    """State of Home Assistant's Bluetooth sync with the bottle."""
+
+    _attr_has_entity_name = True
+    entity_description: WaterHBluetoothSensorDescription
+
+    def __init__(
+        self, coordinator: WaterHCoordinator, description: WaterHBluetoothSensorDescription
+    ) -> None:
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._attr_unique_id = f"{coordinator.user_id}_{description.key}"
+        self._attr_device_info = waterh_device_info(coordinator)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.ble is not None
+
+    @property
+    def native_value(self) -> Any:
+        assert self.coordinator.ble is not None
+        return self.entity_description.value_fn(self.coordinator.ble)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.entity_description.attrs_fn is None or self.coordinator.ble is None:
+            return None
+        return self.entity_description.attrs_fn(self.coordinator.ble)

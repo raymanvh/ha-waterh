@@ -1,9 +1,16 @@
-"""The WaterH integration: WaterH's cloud, or local-only via the WaterH Sync app."""
+"""The WaterH integration.
+
+Three ways for drinks to reach Home Assistant (see README):
+- bluetooth: Home Assistant connects to the bottle itself.
+- local: the WaterH Sync Android app sends drinks to a webhook.
+- cloud: drinks are read from the WaterH account the official app uploads to.
+"""
 
 from __future__ import annotations
 
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
@@ -13,17 +20,22 @@ from .const import (
     CONF_ACCESS_TOKEN,
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
-    CONF_MODE,
     CONF_REFRESH_TOKEN,
     CONF_TOKEN_EXPIRES_AT,
     DEFAULT_CLIENT_ID,
     DEFAULT_CLIENT_SECRET,
     DOMAIN,
-    MODE_LOCAL,
 )
 from .coordinator import WaterHConfigEntry, WaterHCoordinator
 from .local import LocalDrinkStore
 from .services import async_setup_services
+from .settings import (
+    android_app_enabled,
+    bottle_address,
+    is_no_account,
+    sync_interval,
+    update_bottle,
+)
 from .webhook import async_register_webhook
 
 PLATFORMS: list[Platform] = [
@@ -52,7 +64,14 @@ def client_credentials(entry: WaterHConfigEntry) -> tuple[str, str]:
 
 async def async_setup_entry(hass: HomeAssistant, entry: WaterHConfigEntry) -> bool:
     """Set up WaterH from a config entry."""
-    if entry.data.get(CONF_MODE) == MODE_LOCAL:
+    address = bottle_address(entry)
+    if address and "bluetooth" not in hass.config.components:
+        raise ConfigEntryNotReady(
+            "Home Assistant's Bluetooth integration isn't set up. Add a Bluetooth "
+            "adapter or an ESPHome Bluetooth proxy, or turn Bluetooth sync off in "
+            "this integration's options."
+        )
+    if is_no_account(entry):
         store = LocalDrinkStore(hass, entry.entry_id)
         await store.async_load()
         coordinator = WaterHCoordinator(hass, entry, None, store)
@@ -60,10 +79,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaterHConfigEntry) -> bo
         coordinator = _cloud_coordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
-    # Receives reports (and, in local mode, drinks) from the WaterH Sync app.
-    async_register_webhook(hass, entry)
+
+    if android_app_enabled(entry):
+        # Receives reports (and, without an account, drinks) from the WaterH Sync app.
+        async_register_webhook(hass, entry)
+
+    if address:
+        from .bluetooth_sync import BottleBluetooth
+
+        coordinator.ble = BottleBluetooth(
+            hass,
+            entry,
+            coordinator,
+            address,
+            sync_interval(entry),
+            update_bottle(entry),
+        )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    if coordinator.ble is not None:
+        entry.async_on_unload(coordinator.ble.async_start())
 
     # Token refreshes also update the entry, so only reload when the options
     # themselves change.

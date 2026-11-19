@@ -1,14 +1,21 @@
 {
   "domain": "waterh",
   "name": "WaterH",
+  "after_dependencies": ["bluetooth"],
+  "bluetooth": [
+    { "local_name": "WaterH*", "connectable": true },
+    { "local_name": "WATERH*", "connectable": true },
+    { "local_name": "waterh*", "connectable": true },
+    { "local_name": "Waterh*", "connectable": true }
+  ],
   "codeowners": ["@raymanvh"],
   "config_flow": true,
   "dependencies": ["webhook"],
   "documentation": "https://github.com/raymanvh/ha-waterh",
-  "integration_type": "service",
-  "iot_class": "cloud_polling",
+  "integration_type": "device",
+  "iot_class": "local_polling",
   "issue_tracker": "https://github.com/raymanvh/ha-waterh/issues",
   "loggers": ["custom_components.waterh"],
   "requirements": [],
-  "version": "0.3.2"
+  "version": "0.4.0"
 }

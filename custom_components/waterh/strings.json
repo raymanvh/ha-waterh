@@ -9,24 +9,30 @@
         }
       },
       "user": {
-        "title": "How should WaterH connect?",
-        "description": "Choose where your drinks come from. Local only needs the WaterH Sync Android app and no WaterH account.",
+        "title": "How should your bottle's drinks reach Home Assistant?",
+        "description": "There are three ways. They differ in what you need to install, whether you need a WaterH account, and when drinks show up. You can change the Bluetooth and Android app settings later under **Configure**; switching to or from the WaterH account means adding the integration again.\n\nThe first two replace the official WaterH app. Don't use the official app alongside them: it takes the drinks off the bottle when it syncs, and Home Assistant would never see those.",
         "menu_options": {
-          "cloud": "WaterH account (cloud)",
-          "local": "Local only (WaterH Sync app, no account)"
+          "pick_bluetooth": "Bluetooth through Home Assistant (recommended)",
+          "local": "WaterH Sync Android app",
+          "cloud": "WaterH account (keep using the official app)"
+        },
+        "menu_option_descriptions": {
+          "pick_bluetooth": "Nothing to install on your phone and no WaterH account; works for iPhone and Android. Home Assistant connects to the bottle itself through a Bluetooth adapter or ESPHome Bluetooth proxy. Drinks sync whenever the bottle is near one; drinks taken away from home stay on the bottle and arrive (with their real times) when you're back. Needs Bluetooth in range of where the bottle usually is.",
+          "local": "For Android users who want drinks to show up while away from home. You install the WaterH Sync app (an APK from GitHub, not the Play Store); it reads the bottle on your phone and sends drinks to Home Assistant, over the internet if Home Assistant is reachable remotely. No WaterH account. You can add Bluetooth through Home Assistant later as a second path.",
+          "cloud": "For people who want to keep using the official WaterH app. Home Assistant reads your drinks from your WaterH account. Drinks only appear after the official app uploads them, which it only does while it's open. Needs your WaterH email and password."
         }
       },
       "cloud": {
         "title": "Sign in to WaterH",
-        "description": "Use the email and password for your WaterH app account. If you signed up with Google or Facebook, set a password first with \"Forgot password\" in the WaterH app. Your password is only used to get a login token and is not stored.",
+        "description": "Use the email and password for your WaterH app account. If you signed up with Google or Facebook, set a password first with \"Forgot password\" in the WaterH app. Your password is only used to get a login token and is not stored.\n\n**Remember:** drinks only reach your WaterH account (and so Home Assistant) when the official WaterH app is open and syncing. If you'd rather not depend on that, go back and choose Bluetooth through Home Assistant.",
         "data": {
           "email": "Email",
           "password": "Password"
         }
       },
       "local": {
-        "title": "Local only",
-        "description": "Drinks will come straight from your bottle through the WaterH Sync Android app and be stored in Home Assistant. Nothing is sent to WaterH, and no WaterH account is needed.\n\nDon't open the official WaterH app while using local mode: it takes the drinks off the bottle, and Home Assistant would never see them.",
+        "title": "WaterH Sync Android app",
+        "description": "The WaterH Sync app reads drinks from your bottle on your phone and sends them to Home Assistant, where they are stored. Nothing is sent to WaterH, and no WaterH account is needed.\n\n- Install the app from github.com/raymanvh/waterh-sync-android (Android only).\n- With a remote URL (Nabu Casa or your own), drinks arrive while you're away from home too. Without one, they wait on the bottle or phone until you're home.\n- Stop using the official WaterH app: it would take the drinks off the bottle before the app sees them.\n- You can also let Home Assistant sync the bottle over Bluetooth when you're home; turn that on later under Configure.",
         "data": {
           "name": "Name"
         },
@@ -36,25 +42,47 @@
       },
       "local_finish": {
         "title": "Connect the WaterH Sync app",
-        "description": "In WaterH Sync, choose **Local only** and paste this URL. Keep it private; anyone who has it can add drinks.\n\n{webhook_url}\n\nYou can find it again later under Configure.\n\nIf your phone should sync while away from home, use your external or Nabu Casa remote URL. Otherwise drinks wait on the bottle until you're home."
+        "description": "In WaterH Sync, choose **Local only** and paste this URL. Keep it private: anyone who has it can add drinks.\n\n{webhook_url}\n\nYou can find it again later under Configure.\n\nTo sync while away from home, use your external or Nabu Casa remote URL. Otherwise drinks wait until you're home."
+      },
+      "pick_bluetooth": {
+        "title": "Choose your bottle",
+        "description": "Home Assistant can hear {count} WaterH bottle(s) right now. Pick yours below.\n\n**Bottle not listed?**\n- Pick the bottle up or tilt it to wake it; it only advertises while awake.\n- Make sure no phone is connected to it (close the official WaterH app and the WaterH Sync app). A bottle accepts one connection at a time.\n- A Bluetooth adapter on Home Assistant, or an ESPHome Bluetooth proxy with active connections enabled, has to be within range (roughly the same room).\n\nThen submit with the box empty to search again. You can also type the bottle's Bluetooth address (AA:BB:CC:DD:EE:FF).",
+        "data": {
+          "address": "Bottle"
+        }
+      },
+      "bluetooth_confirm": {
+        "title": "Bluetooth through Home Assistant",
+        "description": "Bottle: **{bottle}**\n\n**How it works**\n- Whenever the bottle is within range of a Bluetooth adapter or proxy, Home Assistant connects to it every {interval} minutes (you can change this under Configure).\n- Each sync reads the drinks stored on the bottle, saves them in Home Assistant, and only then clears them from the bottle.\n- It also sets the bottle's clock, daily goal and today's total to match Home Assistant, so the bottle's own display agrees with your dashboards. This can be turned off under Configure.\n- Battery level and charging are read on every sync.\n\n**Good to know**\n- Away from home, the bottle keeps drinks (with their times) until it's back in range. Nothing is lost, it's just delayed. How many drinks the bottle can hold is not known, so don't go weeks without syncing.\n- Stop using the official WaterH app: it would take the drinks off the bottle before Home Assistant sees them.\n- Drinks are stored only in Home Assistant (the last 30 days). Long-term history lives in Home Assistant's statistics.",
+        "data": {
+          "name": "Name"
+        },
+        "data_description": {
+          "name": "Used for the device and entity names, e.g. \"Bottle\" gives sensor.waterh_bottle_water_today."
+        }
       }
     },
     "error": {
       "invalid_auth": "Wrong email or password.",
       "cannot_connect": "Could not reach the WaterH servers.",
-      "unknown": "Unexpected error. Check the logs."
+      "unknown": "Unexpected error. Check the logs.",
+      "no_bottle_found": "Still no WaterH bottle found. Wake the bottle, check no phone is connected to it, and make sure a Bluetooth adapter or proxy is nearby.",
+      "pick_bottle": "Pick a bottle from the list, or type its Bluetooth address.",
+      "invalid_address": "That isn't a Bluetooth address. It looks like AA:BB:CC:DD:EE:FF."
     },
     "abort": {
-      "already_configured": "This WaterH account is already set up.",
+      "already_configured": "This is already set up.",
       "reauth_successful": "Signed in again.",
-      "wrong_account": "That login belongs to a different WaterH account."
-    }
+      "wrong_account": "That login belongs to a different WaterH account.",
+      "no_bluetooth": "Home Assistant's Bluetooth integration isn't set up. Add a Bluetooth adapter or an ESPHome Bluetooth proxy first (Settings → Devices & services), then try again. Or choose the WaterH Sync Android app or a WaterH account instead."
+    },
+    "flow_title": "{name}"
   },
   "options": {
     "step": {
       "init": {
         "title": "WaterH options",
-        "description": "Choose how volumes are shown: follow Home Assistant's unit system, follow the unit set in the WaterH app, or pick mL or fl. oz. Leave the client ID and secret empty to use the built-in values; only fill them in if WaterH changes the values in their app (see the README).\n\n**WaterH Sync Android app (optional):** to get bottle battery and charging sensors, paste this URL into the app under Settings → Home Assistant. Keep it private; anyone with it can report bottle status.\n\n{webhook_url}",
+        "description": "Choose how volumes are shown: follow Home Assistant's unit system, follow the unit set in the WaterH app, or pick mL or fl. oz. The update interval is how often Home Assistant checks your WaterH account; drinks still only arrive there when the official app has uploaded them. Leave the client ID and secret empty to use the built-in values; only fill them in if WaterH changes the values in their app (see the README).\n\n**WaterH Sync Android app (optional):** for bottle battery and charging sensors, paste this URL into the app under Settings → Home Assistant. Keep it private; anyone with it can report bottle status.\n\n{webhook_url}",
         "data": {
           "volume_unit": "Volume unit",
           "scan_interval": "Update interval",
@@ -62,13 +90,28 @@
           "client_secret": "OAuth client secret (advanced)"
         }
       },
-      "local": {
-        "title": "WaterH (local)",
-        "description": "Webhook URL for the WaterH Sync app (keep it private):\n\n{webhook_url}",
+      "sync": {
+        "title": "Sync settings",
+        "description": "Drinks can reach Home Assistant in two ways here, and you can use either or both. A drink seen by both is only counted once.\n\n- **Bluetooth through Home Assistant**: Home Assistant connects to the bottle when it's in range of a Bluetooth adapter or proxy. Choose Off to stop.\n- **WaterH Sync Android app**: your phone sends drinks, including while you're away if Home Assistant is reachable remotely. App URL (keep it private):\n\n{webhook_url}",
         "data": {
+          "address": "Bluetooth bottle",
+          "sync_interval": "Bluetooth sync interval",
+          "update_bottle": "Keep the bottle in step with Home Assistant",
+          "android_app": "Accept drinks from the WaterH Sync Android app",
           "volume_unit": "Volume unit"
+        },
+        "data_description": {
+          "address": "The bottle Home Assistant syncs over Bluetooth, or Off.",
+          "sync_interval": "How often to sync while the bottle is in range. Shorter means drinks show up sooner but the bottle wakes its radio more often, which uses a little more of its battery. 5 minutes is a good balance. Logging a drink or changing the goal in Home Assistant syncs right away.",
+          "update_bottle": "Sets the bottle's clock, daily goal and today's total to Home Assistant's on each sync, so the bottle's display matches your dashboards. Turn off to only read drinks.",
+          "android_app": "Turn on if you also use the WaterH Sync app, e.g. to sync while away from home."
         }
       }
+    },
+    "error": {
+      "no_source": "Choose a Bluetooth bottle, turn on the Android app, or both; otherwise no drinks can arrive.",
+      "invalid_address": "That isn't a Bluetooth address. It looks like AA:BB:CC:DD:EE:FF.",
+      "no_bluetooth": "Home Assistant's Bluetooth integration isn't set up. Add a Bluetooth adapter or ESPHome Bluetooth proxy first."
     }
   },
   "entity": {
@@ -101,7 +144,43 @@
         "name": "Bottle firmware"
       },
       "bottle_reported": {
-        "name": "Last app report"
+        "name": "Last bottle read"
+      },
+      "bluetooth_sync": {
+        "name": "Bluetooth sync",
+        "state": {
+          "waiting": "Waiting for bottle",
+          "syncing": "Syncing",
+          "ok": "OK",
+          "not_in_range": "Not in range",
+          "failed": "Failed"
+        },
+        "state_attributes": {
+          "last_attempt": {
+            "name": "Last attempt"
+          },
+          "next_sync_after": {
+            "name": "Next sync after"
+          },
+          "last_error": {
+            "name": "Last error"
+          },
+          "via": {
+            "name": "Via"
+          },
+          "drinks_last_sync": {
+            "name": "Drinks in last sync"
+          },
+          "cleared_last_sync": {
+            "name": "Records cleared in last sync"
+          },
+          "steps": {
+            "name": "Steps"
+          }
+        }
+      },
+      "last_bluetooth_sync": {
+        "name": "Last Bluetooth sync"
       }
     },
     "number": {
@@ -135,11 +214,17 @@
     "button": {
       "log_drink": {
         "name": "Log drink"
+      },
+      "sync_now": {
+        "name": "Sync bottle now"
       }
     },
     "binary_sensor": {
       "charging": {
         "name": "Bottle charging"
+      },
+      "in_range": {
+        "name": "Bottle in range"
       }
     }
   },
@@ -170,11 +255,11 @@
   "services": {
     "log_drink": {
       "name": "Log drink",
-      "description": "Adds a manual drink to your WaterH log, like the + button in the WaterH app.",
+      "description": "Adds a manual drink, like the + button in the WaterH app. Without a WaterH account it's stored in Home Assistant.",
       "fields": {
         "config_entry_id": {
-          "name": "WaterH account",
-          "description": "Only needed if you have more than one WaterH account set up."
+          "name": "WaterH entry",
+          "description": "Only needed if you have more than one WaterH entry set up."
         },
         "amount": {
           "name": "Amount",
@@ -196,11 +281,11 @@
     },
     "delete_drink": {
       "name": "Delete drink",
-      "description": "Removes an entry from your WaterH log. The ID of the most recent drink is the drink_id attribute of the Last drink sensor.",
+      "description": "Removes a drink. The ID of the most recent drink is the drink_id attribute of the Last drink sensor.",
       "fields": {
         "config_entry_id": {
-          "name": "WaterH account",
-          "description": "Only needed if you have more than one WaterH account set up."
+          "name": "WaterH entry",
+          "description": "Only needed if you have more than one WaterH entry set up."
         },
         "drink_id": {
           "name": "Drink ID",
@@ -211,10 +296,10 @@
   },
   "exceptions": {
     "no_entry": {
-      "message": "No loaded WaterH account found."
+      "message": "No loaded WaterH entry found."
     },
     "multiple_entries": {
-      "message": "More than one WaterH account is set up; choose one with config_entry_id."
+      "message": "More than one WaterH entry is set up; choose one with config_entry_id."
     },
     "invalid_amount": {
       "message": "Amount must be between 1 mL and 10,000 mL (got {amount_ml} mL)."
@@ -227,6 +312,9 @@
     },
     "set_goal_failed": {
       "message": "WaterH didn't accept the new goal: {error}"
+    },
+    "sync_failed": {
+      "message": "Couldn't sync the bottle: {error}"
     }
   }
 }

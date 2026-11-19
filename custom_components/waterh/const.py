@@ -44,10 +44,28 @@ CONF_WEBHOOK_ID: Final = "webhook_id"
 # Set once the app has reported, so bottle entities are only created for app users.
 CONF_APP_REPORTED: Final = "app_reported"
 
-# Cloud (WaterH account) or local (drinks come only from the WaterH Sync app).
+# How drinks reach Home Assistant (chosen at setup):
+# - bluetooth: Home Assistant connects to the bottle itself (no account, no app).
+# - local: the WaterH Sync Android app sends drinks (no account).
+# - cloud: drinks are read from the WaterH account the official app uploads to.
 CONF_MODE: Final = "mode"
+MODE_BLUETOOTH: Final = "bluetooth"
 MODE_CLOUD: Final = "cloud"
 MODE_LOCAL: Final = "local"
+NO_ACCOUNT_MODES: Final = (MODE_BLUETOOTH, MODE_LOCAL)
+
+# Options for the no-account modes.
+# Bluetooth address of the bottle Home Assistant syncs ("" = Bluetooth sync off).
+CONF_BOTTLE_ADDRESS: Final = "address"
+# Minutes between Bluetooth syncs while the bottle is in range.
+CONF_SYNC_INTERVAL: Final = "sync_interval"
+DEFAULT_SYNC_INTERVAL_MINUTES: Final = 5
+MIN_SYNC_INTERVAL_MINUTES: Final = 1
+MAX_SYNC_INTERVAL_MINUTES: Final = 60
+# Write Home Assistant's clock, goal and today's total to the bottle on sync.
+CONF_UPDATE_BOTTLE: Final = "update_bottle"
+# Accept drinks from the WaterH Sync Android app too (webhook).
+CONF_ANDROID_APP: Final = "android_app"
 # Local mode: goal until the user sets one, and how long drinks are kept on disk.
 LOCAL_DEFAULT_GOAL_ML: Final = 2000
 LOCAL_KEEP_DAYS: Final = 30
@@ -75,3 +93,17 @@ ATTR_DRINK_ID: Final = "drink_id"
 # Goal limits accepted by the integration (mL). Sanity bounds, not WaterH's.
 GOAL_MIN_ML: Final = 500
 GOAL_MAX_ML: Final = 10000
+
+# States of the Bluetooth sync sensor.
+SYNC_STATUS_WAITING: Final = "waiting"
+SYNC_STATUS_SYNCING: Final = "syncing"
+SYNC_STATUS_OK: Final = "ok"
+SYNC_STATUS_NOT_IN_RANGE: Final = "not_in_range"
+SYNC_STATUS_FAILED: Final = "failed"
+SYNC_STATUSES: Final = [
+    SYNC_STATUS_WAITING,
+    SYNC_STATUS_SYNCING,
+    SYNC_STATUS_OK,
+    SYNC_STATUS_NOT_IN_RANGE,
+    SYNC_STATUS_FAILED,
+]

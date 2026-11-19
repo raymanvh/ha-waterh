@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -23,15 +23,17 @@ from .api import (
 )
 from .const import (
     CONF_APP_REPORTED,
-    CONF_MODE,
     CONF_SCAN_INTERVAL,
     CONF_USER_ID,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
-    MODE_LOCAL,
     SOURCE_MANUAL,
 )
-from .local import LocalDrinkStore
+from .local import LocalDrinkStore, bottle_drink_id
+from .protocol import BoostStatus, LogRecord
+
+if TYPE_CHECKING:
+    from .bluetooth_sync import BottleBluetooth
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,7 +84,7 @@ class WaterHData:
 
 @dataclass
 class BottleStatus:
-    """Bottle state reported by the WaterH Sync Android app (not available from the cloud)."""
+    """Bottle state read over Bluetooth, by Home Assistant or the Android app (not in the cloud)."""
 
     battery: int
     charging: bool | None
@@ -134,8 +136,10 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         # Settings for the "Log drink" button (kept in Home Assistant only).
         self.quick_amount_ml: int = 250
         self.quick_drink_type: str = "water"
-        # Pushed by the Android app through the webhook; None until it reports.
+        # Read from the bottle (Home Assistant Bluetooth or the Android app); None until then.
         self.bottle: BottleStatus | None = None
+        # Home Assistant's own Bluetooth sync, when this entry uses it.
+        self.ble: BottleBluetooth | None = None
         self._first_report_callbacks: list[Callable[[], None]] = []
 
     @callback
@@ -144,8 +148,23 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         self._first_report_callbacks.append(cb)
 
     @callback
+    def async_set_bottle_from_status(
+        self, status: BoostStatus, total_written: int | None
+    ) -> None:
+        """Bluetooth sync read the bottle's status."""
+        self.async_set_bottle(
+            BottleStatus(
+                battery=status.battery,
+                charging=status.charging,
+                firmware=status.firmware,
+                today_ml=total_written if total_written is not None else status.today_ml,
+                reported_at=dt_util.utcnow(),
+            )
+        )
+
+    @callback
     def async_set_bottle(self, status: BottleStatus) -> None:
-        """Store a report from the app and refresh entities."""
+        """Store a bottle report (Bluetooth sync or the app) and refresh entities."""
         self.bottle = status
         entry = self.config_entry
         if not entry.data.get(CONF_APP_REPORTED):
@@ -171,6 +190,7 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
             self.store.add([self.store.manual_drink(amount_ml, water_type, when)])
             await self.store.async_save()
             self.async_set_updated_data(self._local_data())
+            self._push_to_bottle_soon()
             return
         assert self.client is not None
         await self.client.async_add_drink(self.user_id, amount_ml, water_type, when)
@@ -182,6 +202,7 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
                 raise WaterHError(f"No drink with id {drink_id}")
             await self.store.async_save()
             self.async_set_updated_data(self._local_data())
+            self._push_to_bottle_soon()
             return
         assert self.client is not None
         await self.client.async_delete_drink(drink_id)
@@ -192,6 +213,7 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
             self.store.goal_ml = goal_ml
             await self.store.async_save()
             self.async_set_updated_data(self._local_data())
+            self._push_to_bottle_soon()
             return
         assert self.client is not None
         await self.client.async_set_goal(goal_ml)
@@ -205,6 +227,48 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         await self.store.async_save()
         self.async_set_updated_data(self._local_data())
         return added
+
+    async def async_receive_bluetooth_records(
+        self, records: list[LogRecord], source: str
+    ) -> int:
+        """Bluetooth sync: save drinks read off the bottle. Returns today's total (mL).
+
+        Times come from the bottle's clock, which is local time (Home
+        Assistant's time zone). Ids match the Android app's, so a drink both
+        of them see is only stored once.
+        """
+        assert self.store is not None
+        tz = dt_util.get_default_time_zone()
+        drinks: list[WaterHDrink] = []
+        for record in records:
+            naive = record.time.to_naive()
+            # A bottle whose clock was never set reports impossible dates; keep
+            # the drink, stamped with the sync time, rather than lose it.
+            created = (
+                dt_util.as_utc(naive.replace(tzinfo=tz)) if naive else dt_util.utcnow()
+            )
+            drinks.append(
+                WaterHDrink(
+                    id=bottle_drink_id(created, record.amount_ml),
+                    water_amount=record.amount_ml,
+                    amount=record.amount_ml,
+                    created=created,
+                    source_id=source,
+                    mac_address=None,
+                    water_type="water",
+                    # Same scaling the official app uploads (and the Android app sends).
+                    temperature=float(record.temperature_raw * 10),
+                    tds=record.tds,
+                )
+            )
+        await self.async_receive_bottle_drinks(drinks)
+        return self.data.total_ml if self.data else sum(d.water_amount for d in drinks)
+
+    @callback
+    def _push_to_bottle_soon(self) -> None:
+        """A local change (goal, manual drink): update the bottle now if it's in range."""
+        if self.ble is not None and self.ble.in_range:
+            self.ble.async_schedule(force=True)
 
     async def async_note_app_contact(self) -> None:
         """Local mode: record that the app checked in (drives the Last update sensor)."""

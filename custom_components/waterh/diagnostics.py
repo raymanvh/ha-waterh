@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_ACCESS_TOKEN,
+    CONF_BOTTLE_ADDRESS,
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
     CONF_REFRESH_TOKEN,
@@ -28,6 +29,7 @@ TO_REDACT = {
     CONF_WEBHOOK_ID,
     CONF_USER_ID,
     CONF_NAME,
+    CONF_BOTTLE_ADDRESS,
     "id",
     "email",
     "first_name",
@@ -64,8 +66,34 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: WaterHConfigEntry
 ) -> dict[str, Any]:
     """Return redacted diagnostics for a config entry."""
-    data = entry.runtime_data.data
+    coordinator = entry.runtime_data
+    data = coordinator.data
+    ble = coordinator.ble
+    bluetooth: dict[str, Any] | None = None
+    if ble is not None:
+        result = ble.last_result
+        bluetooth = {
+            "status": ble.status,
+            "in_range": ble.in_range,
+            "interval_minutes": ble.interval.total_seconds() / 60,
+            "update_bottle": ble.update_bottle,
+            "last_attempt": ble.last_attempt.isoformat() if ble.last_attempt else None,
+            "last_success": ble.last_success.isoformat() if ble.last_success else None,
+            "last_error": ble.last_error,
+            "last_session": {
+                "drinks": len(result.drinks),
+                "records_on_bottle": result.records_on_bottle,
+                "complete": result.complete,
+                "cleared": result.cleared,
+                "settings_written": result.settings_written,
+                "total_written": result.total_written,
+                "steps": result.steps,
+            }
+            if result
+            else None,
+        }
     return {
+        "bluetooth": bluetooth,
         "entry": {
             "data": async_redact_data(dict(entry.data), TO_REDACT),
             "options": async_redact_data(dict(entry.options), TO_REDACT),
