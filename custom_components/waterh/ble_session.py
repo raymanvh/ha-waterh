@@ -283,16 +283,19 @@ class BottleSession:
             self._step("no drinks stored on the bottle")
             return True
         done = collector.add(packet)
+        packets = 1
         while not done:
             more = await self._wait_for((LogContinued, LogStart), LOGS_NEXT_TIMEOUT_S)
             if more is None:
                 break
             done = collector.add(more)
+            packets += 1
         self.result.drinks = collector.drinks
         self.result.records_on_bottle = collector.expected or len(collector.records)
         self._step(
             f"received {len(collector.records)} of {collector.expected} records "
-            f"({len(collector.drinks)} drinks)"
+            f"({len(collector.drinks)} drinks) in {packets} "
+            f"packet{'s' if packets != 1 else ''}"
         )
         return done
 

@@ -156,6 +156,8 @@ async def test_full_sync_saves_before_clearing() -> None:
     assert result.cleared == 3 and result.complete
     assert result.total_written == 999
     assert result.status is not None and result.status.battery == 99
+    # The fake bottle sends one record per packet here.
+    assert "received 3 of 3 records (2 drinks) in 3 packets" in result.steps
 
 
 async def test_settings_skipped_when_clock_and_goal_already_right() -> None:

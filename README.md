@@ -275,7 +275,7 @@ automation:
 **Bluetooth through Home Assistant**
 
 - **Bottle not found during setup / Bottle in range stays off**: pick the bottle up to wake it. Make sure no phone is connected to it. Check that a Bluetooth adapter or proxy is within a room or two, and that proxies have active connections enabled. **Settings → Devices & services → Bluetooth** shows your adapters and proxies.
-- **Bluetooth sync says Failed**: read its `last_error` attribute. Common causes: a phone connected to the bottle (close the official app or WaterH Sync), all proxy connection slots busy, or the bottle going back to sleep mid-sync. It retries automatically next interval; **Sync bottle now** retries immediately.
+- **Bluetooth sync says Failed**: read its `last_error` attribute. Common causes: a phone connected to the bottle (close the official app or WaterH Sync), the bottle at the edge of range (a failed sync as you leave or arrive home is normal), all proxy connection slots busy, or the bottle going back to sleep mid-sync. It retries automatically next interval; **Sync bottle now** retries immediately.
 - **Drinks missing**: check that the official WaterH app wasn't opened (it takes drinks off the bottle). The `steps` attribute of **Bluetooth sync** shows how many drinks the last sync read and cleared.
 - **The bottle's display shows a different total**: it's updated on the next sync, unless **Keep the bottle in step with Home Assistant** is off.
 

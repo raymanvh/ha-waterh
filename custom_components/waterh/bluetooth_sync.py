@@ -222,8 +222,10 @@ class BottleBluetooth:
             except BleakOutOfConnectionSlotsError:
                 self._finish(
                     STATUS_FAILED,
-                    "Every Bluetooth adapter/proxy in range is busy (no free connection "
-                    "slots). Will try again next interval.",
+                    "No Bluetooth adapter or proxy could connect to the bottle. Either the "
+                    "bottle is at the edge of range (for example, you're leaving or "
+                    "arriving), or every adapter/proxy that can hear it is busy. Will try "
+                    "again next interval.",
                 )
                 return False
             except BleakNotFoundError:
@@ -290,7 +292,9 @@ class BottleBluetooth:
                 self._recalibration_done(str(err))
             except BleakOutOfConnectionSlotsError:
                 self._recalibration_done(
-                    "Every Bluetooth adapter/proxy in range is busy. Try again in a minute."
+                    "No Bluetooth adapter or proxy could connect to the bottle: it may be at "
+                    "the edge of range, or every adapter/proxy that can hear it is busy. "
+                    "Move it closer or try again in a minute."
                 )
             except TimeoutError:
                 self._recalibration_done("The bottle took too long to answer.")
