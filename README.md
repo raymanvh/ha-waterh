@@ -124,7 +124,7 @@ Bluetooth through Home Assistant only:
 | **Last Bluetooth sync** (diagnostic) | When the last successful sync finished. |
 | **Sync bottle now** | Syncs immediately, ignoring the interval. Shows an error if it can't. |
 | **Drink reminder** (configuration) | When the bottle's light ring reminds you to drink: **Off**, **Periodic** (every interval) or **Smart** (after an interval without drinking). See [Drink reminders](#drink-reminders). |
-| **Drink reminder interval** (configuration) | Minutes between reminders, 1–240. |
+| **Drink reminder interval** (configuration) | 15, 30, 45, 60, 90 or 120 minutes, the values the bottle accepts. |
 | **Drink reminders start / end** (configuration) | The hours reminders are active, e.g. 09:00 to 22:00. The end can be after midnight. |
 | **Recalibrate bottle** (configuration) | Recalibrates the empty bottle in one press. **Configure → Recalibrate the bottle** walks you through it instead. See [Recalibrating the bottle](#recalibrating-the-bottle). |
 
@@ -203,13 +203,14 @@ The bottle's light ring can remind you to drink. These settings live on the bott
 | Setting | What it does |
 | --- | --- |
 | **Drink reminder** | **Off**; **Periodic**: lights up every interval during active hours; **Smart**: lights up only if you haven't drunk from the bottle for an interval. |
-| **Drink reminder interval** | The interval, in minutes (1–240). The official app offers 15, 30, 45, 60, 90 and 120, plus custom values. |
+| **Drink reminder interval** | 15, 30, 45, 60, 90 or 120 minutes. These are the values the official app's bottle-light screen offers; the bottle ignores the whole reminder setting for any other interval. |
 | **Drink reminders start / end** | When reminders are active each day. An end earlier than the start (e.g. 09:00 to 01:00) runs past midnight. |
 
 How it works:
 
 - Home Assistant reads the bottle's current reminder settings on every sync, so the entities show what the bottle actually has. They're unavailable until the bottle has synced once.
-- When you change one, it's written to the bottle on the next sync. If the bottle is in range that's straight away; otherwise it's when the bottle is next in range. Until then, the entities' `waiting_for_bottle` attribute is `true`.
+- When you change one, it's written to the bottle on the next sync. If the bottle is in range that's straight away; otherwise it's when the bottle is next in range. The entities' `waiting_for_bottle` attribute stays `true` until a sync reads the new setting back from the bottle.
+- If the bottle doesn't take a setting (it still reports its old one after a retry), Home Assistant stops sending it, shows the bottle's own settings again, and says so in the **Bluetooth sync** sensor's `steps`.
 - Once you've changed a reminder setting in Home Assistant, Home Assistant keeps the bottle at that setting, like the daily goal. If you never change them here, the bottle's own settings are left alone.
 - They're normal entities, so automations can change them, for example Smart reminders on workdays and Off on weekends.
 

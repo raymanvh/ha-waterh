@@ -222,14 +222,6 @@
       },
       "quick_amount": {
         "name": "Drink amount"
-      },
-      "reminder_interval": {
-        "name": "Drink reminder interval",
-        "state_attributes": {
-          "waiting_for_bottle": {
-            "name": "Waiting for bottle"
-          }
-        }
       }
     },
     "select": {
@@ -257,6 +249,22 @@
           "off": "Off",
           "periodic": "Periodic: every interval",
           "smart": "Smart: after an interval without drinking"
+        },
+        "state_attributes": {
+          "waiting_for_bottle": {
+            "name": "Waiting for bottle"
+          }
+        }
+      },
+      "reminder_interval": {
+        "name": "Drink reminder interval",
+        "state": {
+          "15": "15 minutes",
+          "30": "30 minutes",
+          "45": "45 minutes",
+          "60": "1 hour",
+          "90": "1.5 hours",
+          "120": "2 hours"
         },
         "state_attributes": {
           "waiting_for_bottle": {

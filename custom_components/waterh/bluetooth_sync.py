@@ -86,6 +86,9 @@ class BottleBluetooth:
         self._task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
         self._cancel_timer: CALLBACK_TYPE | None = None
+        # A forced sync was asked for while one was running (e.g. several
+        # settings changed in a row): run one more straight after.
+        self._resync = False
         self._stopped = False
 
     # ---- watching -------------------------------------------------------
@@ -170,6 +173,8 @@ class BottleBluetooth:
     def async_schedule(self, force: bool = False) -> None:
         """Start a sync in the background if one is due (or [force])."""
         if self._task is not None and not self._task.done():
+            if force:
+                self._resync = True
             return
         if (
             not force
@@ -178,8 +183,15 @@ class BottleBluetooth:
         ):
             return
         self._task = self.entry.async_create_background_task(
-            self.hass, self.async_sync(), f"WaterH Bluetooth sync {self.address}"
+            self.hass, self._async_sync_then_resync(), f"WaterH Bluetooth sync {self.address}"
         )
+
+    async def _async_sync_then_resync(self) -> None:
+        await self.async_sync()
+        # Settings changed while that sync ran: send them now rather than next interval.
+        while self._resync and not self._stopped and self.in_range:
+            self._resync = False
+            await self.async_sync()
 
     # ---- syncing --------------------------------------------------------
 
@@ -341,11 +353,13 @@ class BottleBluetooth:
             finally:
                 self.last_result = session.result
                 if session.result.status is not None:
-                    self.coordinator.async_set_bottle_from_status(
+                    note = self.coordinator.async_set_bottle_from_status(
                         session.result.status,
                         session.result.total_written,
                         session.result.reminder_written,
                     )
+                    if note:
+                        session.result.steps.append(note)
         finally:
             try:
                 await client.disconnect()

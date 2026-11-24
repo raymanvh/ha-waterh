@@ -12,7 +12,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import CONF_VOLUME_UNIT, DRINK_TYPES, UNIT_AUTO, VOLUME_UNITS
 from .coordinator import WaterHConfigEntry, WaterHCoordinator
 from .entity import WaterHReminderEntity, waterh_device_info
-from .protocol import REMINDER_OFF, REMINDER_PERIODIC, REMINDER_SMART
+from .protocol import (
+    REMINDER_INTERVALS,
+    REMINDER_OFF,
+    REMINDER_PERIODIC,
+    REMINDER_SMART,
+)
 
 REMINDER_MODES = {"off": REMINDER_OFF, "periodic": REMINDER_PERIODIC, "smart": REMINDER_SMART}
 
@@ -29,7 +34,39 @@ async def async_setup_entry(
     ]
     if entry.runtime_data.ble is not None:
         entities.append(WaterHReminderModeSelect(entry.runtime_data))
+        entities.append(WaterHReminderIntervalSelect(entry.runtime_data))
     async_add_entities(entities)
+
+
+class WaterHReminderIntervalSelect(WaterHReminderEntity, SelectEntity):
+    """Minutes between reminders (periodic) or without a drink before one (smart).
+
+    A list rather than a number: the bottle only accepts these values and
+    ignores the whole reminder setting for any other.
+    """
+
+    _attr_icon = "mdi:timer-outline"
+
+    def __init__(self, coordinator: WaterHCoordinator) -> None:
+        super().__init__(coordinator, "reminder_interval")
+        self._attr_options = [str(i) for i in REMINDER_INTERVALS]
+
+    @property
+    def options(self) -> list[str]:
+        options = [str(i) for i in REMINDER_INTERVALS]
+        reminder = self.coordinator.reminder
+        # Show a value the bottle has that isn't in the list (set some other way).
+        if reminder is not None and str(reminder.interval_minutes) not in options:
+            options.append(str(reminder.interval_minutes))
+        return options
+
+    @property
+    def current_option(self) -> str | None:
+        reminder = self.coordinator.reminder
+        return str(reminder.interval_minutes) if reminder else None
+
+    async def async_select_option(self, option: str) -> None:
+        await self._async_change(interval_minutes=int(option))
 
 
 class WaterHReminderModeSelect(WaterHReminderEntity, SelectEntity):

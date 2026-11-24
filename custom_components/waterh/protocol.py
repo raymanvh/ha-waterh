@@ -38,12 +38,15 @@ RECALIBRATE_FAILED = 4
 # [mode][start hour][start minute][end hour][end minute][interval minutes].
 # Built like the official app's Reminder.toBottleFormData(): mode 00 off,
 # 01 periodic (light up every interval), 02 smart (light up if nothing was
-# drunk for an interval). The app offers intervals of 1-60, 120, 180 and
-# 240 minutes; the bottle stores one byte.
+# drunk for an interval).
 REMINDER_OFF = 0
 REMINDER_PERIODIC = 1
 REMINDER_SMART = 2
-REMINDER_INTERVAL_RANGE = range(1, 241)
+# Intervals the bottle accepts: the official app's bottle-light picker
+# (reminder_intervals in DrinkReminderTimeIntervalSelector). Tested on a Boost:
+# 15 and 60 are applied, while 2 and 59 make it ignore the whole reminder
+# setting. (The app's 1-60/120/180/240 list is a different, phone-side picker.)
+REMINDER_INTERVALS = (15, 30, 45, 60, 90, 120)
 
 
 @dataclass(frozen=True)
@@ -73,8 +76,12 @@ class ReminderSettings:
         for minute in (self.start_minute, self.end_minute):
             if not 0 <= minute <= 59:
                 raise ValueError("minute must be 0-59")
-        if self.interval_minutes not in REMINDER_INTERVAL_RANGE:
-            raise ValueError("interval must be 1-240 minutes")
+        if self.interval_minutes not in REMINDER_INTERVALS:
+            raise ValueError(
+                "the bottle only accepts reminder intervals of "
+                + ", ".join(str(i) for i in REMINDER_INTERVALS)
+                + " minutes"
+            )
         if self.mode not in (REMINDER_OFF, REMINDER_PERIODIC, REMINDER_SMART):
             raise ValueError("unknown reminder mode")
         return bytes(

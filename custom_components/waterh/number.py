@@ -15,8 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .api import WaterHError
 from .const import DOMAIN, UNIT_OZ
 from .coordinator import WaterHConfigEntry, WaterHCoordinator
-from .entity import WaterHReminderEntity, waterh_device_info
-from .protocol import REMINDER_INTERVAL_RANGE
+from .entity import waterh_device_info
 from .units import entry_unit, from_ml, ha_unit, to_ml
 
 # Limits per display unit. Min, max and step must line up (the frontend only
@@ -35,35 +34,9 @@ async def async_setup_entry(
     """Set up WaterH number entities."""
     unit = entry_unit(hass, entry)
     coordinator = entry.runtime_data
-    entities: list[NumberEntity] = [
-        WaterHGoalNumber(coordinator, unit),
-        WaterHQuickAmountNumber(coordinator, unit),
-    ]
-    if coordinator.ble is not None:
-        entities.append(WaterHReminderIntervalNumber(coordinator))
-    async_add_entities(entities)
-
-
-class WaterHReminderIntervalNumber(WaterHReminderEntity, NumberEntity):
-    """Minutes between reminders (periodic) or without a drink before one (smart)."""
-
-    _attr_icon = "mdi:timer-outline"
-    _attr_mode = NumberMode.BOX
-    _attr_native_min_value = REMINDER_INTERVAL_RANGE.start
-    _attr_native_max_value = REMINDER_INTERVAL_RANGE.stop - 1
-    _attr_native_step = 1
-    _attr_native_unit_of_measurement = "min"
-
-    def __init__(self, coordinator: WaterHCoordinator) -> None:
-        super().__init__(coordinator, "reminder_interval")
-
-    @property
-    def native_value(self) -> float | None:
-        reminder = self.coordinator.reminder
-        return reminder.interval_minutes if reminder else None
-
-    async def async_set_native_value(self, value: float) -> None:
-        await self._async_change(interval_minutes=int(value))
+    async_add_entities(
+        [WaterHGoalNumber(coordinator, unit), WaterHQuickAmountNumber(coordinator, unit)]
+    )
 
 
 class _WaterHNumberBase(CoordinatorEntity[WaterHCoordinator]):

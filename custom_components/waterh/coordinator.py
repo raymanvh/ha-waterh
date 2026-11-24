@@ -141,6 +141,8 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         self.bottle: BottleStatus | None = None
         # Home Assistant's own Bluetooth sync, when this entry uses it.
         self.ble: BottleBluetooth | None = None
+        # Reminder (hex) sent to the bottle and not yet read back from it.
+        self._reminder_sent: str | None = None
         self._first_report_callbacks: list[Callable[[], None]] = []
 
     @callback
@@ -189,19 +191,40 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         status: BoostStatus,
         total_written: int | None,
         reminder_written: bool = False,
-    ) -> None:
-        """Bluetooth sync read the bottle's status (and maybe wrote a new reminder)."""
-        if self.store is not None and status.reminder_hex:
-            # The bottle's reminder: the one just written, else what it reported. The
-            # next sync reads it again, so a write the bottle ignored is retried.
-            now_on_bottle = (
-                self.store.reminder_hex
-                if reminder_written and self.store.reminder_hex
-                else status.reminder_hex
-            )
-            if self.store.bottle_reminder_hex != now_on_bottle:
-                self.store.bottle_reminder_hex = now_on_bottle
-                self.hass.async_create_task(self.store.async_save())
+    ) -> str | None:
+        """Bluetooth sync read the bottle's status (and maybe wrote a new reminder).
+
+        A reminder change counts as done only once a later sync reads it back
+        from the bottle. If the bottle still doesn't have it on the sync after
+        it was written, it's treated as rejected: Home Assistant stops sending
+        it and goes back to showing the bottle's own settings. Returns a note
+        for the sync log when that happens.
+        """
+        note: str | None = None
+        store = self.store
+        if store is not None and status.reminder_hex:
+            changed = False
+            if store.bottle_reminder_hex != status.reminder_hex:
+                store.bottle_reminder_hex = status.reminder_hex
+                changed = True
+            wanted = store.reminder_hex
+            if wanted and status.reminder_hex == wanted:
+                self._reminder_sent = None
+            elif wanted and self._reminder_sent == wanted:
+                # Sent last sync, and the bottle still has something else.
+                rejected = ReminderSettings.from_hex(wanted)
+                store.reminder_hex = None
+                self._reminder_sent = None
+                changed = True
+                note = (
+                    "the bottle didn't accept the reminder "
+                    f"({rejected.describe() if rejected else wanted}); showing its own "
+                    "settings again"
+                )
+            elif wanted and reminder_written:
+                self._reminder_sent = wanted
+            if changed:
+                self.hass.async_create_task(store.async_save())
         self.async_set_bottle(
             BottleStatus(
                 battery=status.battery,
@@ -211,7 +234,7 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
                 reported_at=dt_util.utcnow(),
             )
         )
-
+        return note
     @callback
     def async_set_bottle(self, status: BottleStatus) -> None:
         """Store a bottle report (Bluetooth sync or the app) and refresh entities."""

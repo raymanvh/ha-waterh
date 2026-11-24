@@ -12,6 +12,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
@@ -96,6 +97,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaterHConfigEntry) -> bo
             sync_interval(entry),
             update_bottle(entry),
         )
+
+    # 0.5.0 had the reminder interval as a number; it's a list now (the bottle
+    # only accepts certain values), so remove the old entity.
+    ent_reg = er.async_get(hass)
+    if old_interval := ent_reg.async_get_entity_id(
+        "number", DOMAIN, f"{coordinator.user_id}_reminder_interval"
+    ):
+        ent_reg.async_remove(old_interval)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     if coordinator.ble is not None:
