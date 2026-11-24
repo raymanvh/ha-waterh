@@ -37,10 +37,17 @@ class LocalDrinkStore:
         self.drinks: list[WaterHDrink] = []
         self.goal_ml: int = LOCAL_DEFAULT_GOAL_ML
         self.last_report: datetime | None = None
+        # Bottle reminder settings (6-byte hex). reminder_hex is what the user
+        # chose in Home Assistant (None = never changed here, leave the bottle
+        # alone); bottle_reminder_hex is what the bottle last reported.
+        self.reminder_hex: str | None = None
+        self.bottle_reminder_hex: str | None = None
 
     async def async_load(self) -> None:
         data = await self._store.async_load() or {}
         self.goal_ml = int(data.get("goal_ml") or LOCAL_DEFAULT_GOAL_ML)
+        self.reminder_hex = data.get("reminder_hex")
+        self.bottle_reminder_hex = data.get("bottle_reminder_hex")
         if last := data.get("last_report"):
             self.last_report = dt_util.parse_datetime(last)
         self.drinks = []
@@ -69,6 +76,8 @@ class LocalDrinkStore:
         await self._store.async_save(
             {
                 "goal_ml": self.goal_ml,
+                "reminder_hex": self.reminder_hex,
+                "bottle_reminder_hex": self.bottle_reminder_hex,
                 "last_report": self.last_report.isoformat() if self.last_report else None,
                 "drinks": [
                     {

@@ -34,6 +34,76 @@ RECALIBRATE_STARTED = 2
 RECALIBRATE_SUCCEEDED = 3
 RECALIBRATE_FAILED = 4
 
+# Reminder settings (status field 38 and the 0x26 settings tag), 6 bytes:
+# [mode][start hour][start minute][end hour][end minute][interval minutes].
+# Built like the official app's Reminder.toBottleFormData(): mode 00 off,
+# 01 periodic (light up every interval), 02 smart (light up if nothing was
+# drunk for an interval). The app offers intervals of 1-60, 120, 180 and
+# 240 minutes; the bottle stores one byte.
+REMINDER_OFF = 0
+REMINDER_PERIODIC = 1
+REMINDER_SMART = 2
+REMINDER_INTERVAL_RANGE = range(1, 241)
+
+
+@dataclass(frozen=True)
+class ReminderSettings:
+    """When the bottle's light ring reminds you to drink."""
+
+    mode: int
+    start_hour: int
+    start_minute: int
+    end_hour: int
+    end_minute: int
+    interval_minutes: int
+
+    @classmethod
+    def from_hex(cls, value: str | None) -> ReminderSettings | None:
+        if not value or len(value) != 12:
+            return None
+        try:
+            return cls(*bytes.fromhex(value))
+        except ValueError:
+            return None
+
+    def to_hex(self) -> str:
+        for hour in (self.start_hour, self.end_hour):
+            if not 0 <= hour <= 23:
+                raise ValueError("hour must be 0-23")
+        for minute in (self.start_minute, self.end_minute):
+            if not 0 <= minute <= 59:
+                raise ValueError("minute must be 0-59")
+        if self.interval_minutes not in REMINDER_INTERVAL_RANGE:
+            raise ValueError("interval must be 1-240 minutes")
+        if self.mode not in (REMINDER_OFF, REMINDER_PERIODIC, REMINDER_SMART):
+            raise ValueError("unknown reminder mode")
+        return bytes(
+            [
+                self.mode,
+                self.start_hour,
+                self.start_minute,
+                self.end_hour,
+                self.end_minute,
+                self.interval_minutes,
+            ]
+        ).hex()
+
+    def describe(self) -> str:
+        mode = {REMINDER_OFF: "off", REMINDER_PERIODIC: "periodic", REMINDER_SMART: "smart"}
+        return (
+            f"{mode.get(self.mode, f'mode {self.mode}')} every {self.interval_minutes} min, "
+            f"{self.start_hour:02d}:{self.start_minute:02d}-"
+            f"{self.end_hour:02d}:{self.end_minute:02d}"
+        )
+
+
+def set_reminder(reminder_hex: str) -> bytes:
+    """Set only the reminder (official app: requestUpdateReminder)."""
+    if len(reminder_hex) != 12:
+        raise ValueError("reminder must be 6 bytes")
+    return bytes.fromhex("505400080726" + reminder_hex)
+
+
 # Size of one stored record in a log reply.
 RECORD_SIZE = 13
 

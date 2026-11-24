@@ -142,3 +142,35 @@ def test_recalibrate_command_and_reports() -> None:
     assert parse_packet(bytes.fromhex("5254000302A104")) == RecalibrateReport(4)
     # Other live reports are still ignored.
     assert isinstance(parse_packet(bytes.fromhex("52540003020240")), Other)
+
+
+def test_reminder_settings() -> None:
+    from custom_components.waterh.protocol import (
+        REMINDER_PERIODIC,
+        REMINDER_SMART,
+        ReminderSettings,
+        set_reminder,
+    )
+
+    # From the real status packet: periodic, 09:00 to 01:00, every 60 minutes.
+    r = ReminderSettings.from_hex("01090001003c")
+    assert r == ReminderSettings(REMINDER_PERIODIC, 9, 0, 1, 0, 60)
+    assert r.describe() == "periodic every 60 min, 09:00-01:00"
+    assert r.to_hex() == "01090001003c"
+    # Same layout as the official app's Reminder.toBottleFormData().
+    smart = ReminderSettings(REMINDER_SMART, 8, 30, 22, 15, 45)
+    assert smart.to_hex() == "02081e160f2d"
+    assert set_reminder(smart.to_hex()).hex().upper() == "50540008072602081E160F2D"
+    assert ReminderSettings.from_hex(None) is None
+    assert ReminderSettings.from_hex("0102") is None
+    import pytest
+
+    for bad in (
+        ReminderSettings(REMINDER_PERIODIC, 24, 0, 1, 0, 60),
+        ReminderSettings(REMINDER_PERIODIC, 9, 60, 1, 0, 60),
+        ReminderSettings(REMINDER_PERIODIC, 9, 0, 1, 0, 0),
+        ReminderSettings(REMINDER_PERIODIC, 9, 0, 1, 0, 241),
+        ReminderSettings(7, 9, 0, 1, 0, 60),
+    ):
+        with pytest.raises(ValueError):
+            bad.to_hex()

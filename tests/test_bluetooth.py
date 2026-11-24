@@ -105,6 +105,9 @@ class FakeBottle:
             if not self.stop_after_first_packet:
                 for rec in self.records[1:]:
                     self._reply(bytes([13, 6]) + rec)
+        elif data.startswith(bytes.fromhex("505400080726")):
+            self.timeline.append("reminder")
+            self._reply(bytes([0x52, 0x50, 0, 3, 2, 0x26, 0]))
         elif data == REQUEST_RECALIBRATE_EMPTY:
             self.timeline.append("recalibrate")
             for code in self.recalibrate_codes:
@@ -120,7 +123,8 @@ class FakeBottle:
 
 
 def _session(bottle: FakeBottle, *, now: datetime, goal: int | None, update: bool = True,
-             today: int | None = 999, fail_store: bool = False):
+             today: int | None = 999, fail_store: bool = False,
+             reminder: str | None = None):
     saved: list[list[LogRecord]] = []
 
     async def store(records: list[LogRecord]) -> int | None:
@@ -132,7 +136,7 @@ def _session(bottle: FakeBottle, *, now: datetime, goal: int | None, update: boo
 
     session = BottleSession(
         bottle, now=lambda: now, goal_ml=goal, update_bottle=update,
-        store_drinks=store, command_delay=0,
+        store_drinks=store, command_delay=0, reminder_hex=reminder,
     )
     return session, saved
 
@@ -168,6 +172,39 @@ async def test_settings_skipped_when_clock_and_goal_already_right() -> None:
     # Nothing stored on the bottle, clock within 30 s, goal and total equal: only reads.
     assert bottle.timeline == ["status", "logs", "store"]
     assert not result.settings_written and result.total_written is None
+
+
+async def test_reminder_change_is_written_with_clock_and_goal() -> None:
+    now = datetime(2026, 11, 17, 23, 0, 10)
+    bottle = FakeBottle(status=_status_with_clock(now))
+    # Clock and goal already right, but the reminder was changed in Home Assistant.
+    session, _ = _session(bottle, now=now, goal=4347, today=2575, reminder="02081E160F2D")
+    result = await session.run()
+    assert bottle.timeline == ["status", "settings", "logs", "store"]
+    settings = next(w for w in bottle.writes if w.startswith(bytes.fromhex("505400140305")))
+    assert settings[-8:].hex() == "072602081e160f2d"  # tag 0x26 + the new reminder
+    assert settings[6:8].hex() == "10fb"  # goal unchanged (4347 mL)
+    assert result.reminder_written
+    assert any("reminder → smart every 45 min, 08:30-22:15" in s for s in result.steps)
+
+
+async def test_same_reminder_is_not_rewritten() -> None:
+    now = datetime(2026, 11, 17, 23, 0, 10)
+    bottle = FakeBottle(status=_status_with_clock(now))
+    session, _ = _session(bottle, now=now, goal=4347, today=2575, reminder="01090001003c")
+    result = await session.run()
+    assert "settings" not in bottle.timeline and not result.reminder_written
+
+
+async def test_reminder_change_is_sent_even_with_bottle_updates_off() -> None:
+    now = datetime(2026, 11, 17, 23, 0, 10)
+    bottle = FakeBottle(status=_status_with_clock(now))
+    session, _ = _session(bottle, now=now, goal=3000, update=False, reminder="02081e160f2d")
+    result = await session.run()
+    # Only the reminder, on its own: no clock or goal.
+    assert bottle.timeline == ["status", "reminder", "logs", "store"]
+    assert bytes.fromhex("50540008072602081e160f2d") in bottle.writes
+    assert result.reminder_written and not result.settings_written
 
 
 async def test_failed_save_never_clears() -> None:
@@ -548,6 +585,87 @@ async def test_guided_recalibration_in_options(hass: HomeAssistant) -> None:
             p.stop()
     # Recalibrating changes no options (so no reload).
     assert entry.options == {"sync_interval": 5, "update_bottle": True, "android_app": False}
+
+
+async def test_reminder_entities(hass: HomeAssistant) -> None:
+    from datetime import time
+
+    entry = await _create_bluetooth_entry(hass)
+    bottle = FakeBottle()
+    patches = _ble_patches(bottle, present=False)
+    for p in patches:
+        p.start()
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+        # Unknown until the bottle has been read once.
+        assert hass.states.get("select.waterh_bottle_drink_reminder").state == "unavailable"
+    finally:
+        for p in patches:
+            p.stop()
+
+    patches = _ble_patches(bottle, present=True)
+    for p in patches:
+        p.start()
+    try:
+        ble = entry.runtime_data.ble
+        assert await ble.async_sync()
+        await hass.async_block_till_done()
+        # The bottle's own settings: periodic, 09:00-01:00, every 60 minutes.
+        assert hass.states.get("select.waterh_bottle_drink_reminder").state == "periodic"
+        assert hass.states.get("number.waterh_bottle_drink_reminder_interval").state == "60"
+        assert hass.states.get("time.waterh_bottle_drink_reminders_start").state == "09:00:00"
+        assert hass.states.get("time.waterh_bottle_drink_reminders_end").state == "01:00:00"
+
+        # Change them in Home Assistant; each change triggers a sync.
+        await hass.services.async_call(
+            "select", "select_option",
+            {"entity_id": "select.waterh_bottle_drink_reminder", "option": "smart"},
+            blocking=True,
+        )
+        await hass.services.async_call(
+            "number", "set_value",
+            {"entity_id": "number.waterh_bottle_drink_reminder_interval", "value": 45},
+            blocking=True,
+        )
+        await hass.services.async_call(
+            "time", "set_value",
+            {"entity_id": "time.waterh_bottle_drink_reminders_end", "time": time(22, 15)},
+            blocking=True,
+        )
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert await ble.async_sync()
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+
+    state = hass.states.get("select.waterh_bottle_drink_reminder")
+    assert state.state == "smart"
+    assert state.attributes["waiting_for_bottle"] is False
+    assert hass.states.get("number.waterh_bottle_drink_reminder_interval").state == "45"
+    assert hass.states.get("time.waterh_bottle_drink_reminders_end").state == "22:15:00"
+    # What the bottle was sent: smart, 09:00-22:15, every 45 minutes.
+    written = [w for w in bottle.writes if w.startswith(bytes.fromhex("505400140305"))]
+    assert written and written[-1][-6:].hex() == "020900160f2d"
+
+
+async def test_reminder_needs_one_bottle_read_first(hass: HomeAssistant) -> None:
+    entry = await _create_bluetooth_entry(hass)
+    patches = _ble_patches(FakeBottle(), present=False)
+    for p in patches:
+        p.start()
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+    from custom_components.waterh.api import WaterHError
+
+    # Not read from the bottle yet: a clear error rather than a guess.
+    with pytest.raises(WaterHError, match="aren't known yet"):
+        await entry.runtime_data.async_set_reminder(interval_minutes=30)
 
 
 async def test_failed_sync_is_reported(hass: HomeAssistant) -> None:

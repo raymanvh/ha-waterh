@@ -77,6 +77,15 @@ async def async_get_config_entry_diagnostics(
             "in_range": ble.in_range,
             "interval_minutes": ble.interval.total_seconds() / 60,
             "update_bottle": ble.update_bottle,
+            "reminder": {
+                "chosen_in_home_assistant": coordinator.store.reminder_hex
+                if coordinator.store
+                else None,
+                "last_on_bottle": coordinator.store.bottle_reminder_hex
+                if coordinator.store
+                else None,
+                "pending": coordinator.reminder_pending,
+            },
             "last_attempt": ble.last_attempt.isoformat() if ble.last_attempt else None,
             "last_success": ble.last_success.isoformat() if ble.last_success else None,
             "last_error": ble.last_error,
@@ -86,6 +95,7 @@ async def async_get_config_entry_diagnostics(
                 "complete": result.complete,
                 "cleared": result.cleared,
                 "settings_written": result.settings_written,
+                "reminder_written": result.reminder_written,
                 "total_written": result.total_written,
                 "steps": result.steps,
             }

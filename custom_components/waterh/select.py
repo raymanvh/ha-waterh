@@ -11,7 +11,10 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_VOLUME_UNIT, DRINK_TYPES, UNIT_AUTO, VOLUME_UNITS
 from .coordinator import WaterHConfigEntry, WaterHCoordinator
-from .entity import waterh_device_info
+from .entity import WaterHReminderEntity, waterh_device_info
+from .protocol import REMINDER_OFF, REMINDER_PERIODIC, REMINDER_SMART
+
+REMINDER_MODES = {"off": REMINDER_OFF, "periodic": REMINDER_PERIODIC, "smart": REMINDER_SMART}
 
 
 async def async_setup_entry(
@@ -19,13 +22,34 @@ async def async_setup_entry(
     entry: WaterHConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up the drink type select."""
-    async_add_entities(
-        [
-            WaterHQuickTypeSelect(entry.runtime_data),
-            WaterHVolumeUnitSelect(entry.runtime_data, entry),
-        ]
-    )
+    """Set up the selects."""
+    entities: list[SelectEntity] = [
+        WaterHQuickTypeSelect(entry.runtime_data),
+        WaterHVolumeUnitSelect(entry.runtime_data, entry),
+    ]
+    if entry.runtime_data.ble is not None:
+        entities.append(WaterHReminderModeSelect(entry.runtime_data))
+    async_add_entities(entities)
+
+
+class WaterHReminderModeSelect(WaterHReminderEntity, SelectEntity):
+    """How the bottle's light ring reminds you: off, periodic or smart."""
+
+    _attr_icon = "mdi:bell-ring-outline"
+
+    def __init__(self, coordinator: WaterHCoordinator) -> None:
+        super().__init__(coordinator, "reminder_mode")
+        self._attr_options = list(REMINDER_MODES)
+
+    @property
+    def current_option(self) -> str | None:
+        reminder = self.coordinator.reminder
+        if reminder is None:
+            return None
+        return next((k for k, v in REMINDER_MODES.items() if v == reminder.mode), None)
+
+    async def async_select_option(self, option: str) -> None:
+        await self._async_change(mode=REMINDER_MODES[option])
 
 
 class WaterHQuickTypeSelect(CoordinatorEntity[WaterHCoordinator], SelectEntity, RestoreEntity):

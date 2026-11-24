@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -30,7 +31,7 @@ from .const import (
     SOURCE_MANUAL,
 )
 from .local import LocalDrinkStore, bottle_drink_id
-from .protocol import BoostStatus, LogRecord
+from .protocol import BoostStatus, LogRecord, ReminderSettings
 
 if TYPE_CHECKING:
     from .bluetooth_sync import BottleBluetooth
@@ -147,11 +148,60 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         """Run [cb] the first time the app reports (to create bottle entities)."""
         self._first_report_callbacks.append(cb)
 
+    @property
+    def reminder(self) -> ReminderSettings | None:
+        """The bottle's reminder settings: as chosen in Home Assistant, else as last read."""
+        if self.store is None:
+            return None
+        return ReminderSettings.from_hex(
+            self.store.reminder_hex or self.store.bottle_reminder_hex
+        )
+
+    @property
+    def reminder_pending(self) -> bool:
+        """A reminder change made in Home Assistant hasn't reached the bottle yet."""
+        return bool(
+            self.store
+            and self.store.reminder_hex
+            and self.store.reminder_hex != self.store.bottle_reminder_hex
+        )
+
+    async def async_set_reminder(self, **changes: int) -> None:
+        """Change reminder settings; written to the bottle on the next Bluetooth sync."""
+        current = self.reminder
+        if self.store is None or current is None:
+            raise WaterHError(
+                "The bottle's reminder settings aren't known yet. Let it sync once over "
+                "Bluetooth, then try again."
+            )
+        wanted = dataclasses.replace(current, **changes)
+        try:
+            self.store.reminder_hex = wanted.to_hex()
+        except ValueError as err:
+            raise WaterHError(str(err)) from err
+        await self.store.async_save()
+        self.async_update_listeners()
+        self._push_to_bottle_soon()
+
     @callback
     def async_set_bottle_from_status(
-        self, status: BoostStatus, total_written: int | None
+        self,
+        status: BoostStatus,
+        total_written: int | None,
+        reminder_written: bool = False,
     ) -> None:
-        """Bluetooth sync read the bottle's status."""
+        """Bluetooth sync read the bottle's status (and maybe wrote a new reminder)."""
+        if self.store is not None and status.reminder_hex:
+            # The bottle's reminder: the one just written, else what it reported. The
+            # next sync reads it again, so a write the bottle ignored is retried.
+            now_on_bottle = (
+                self.store.reminder_hex
+                if reminder_written and self.store.reminder_hex
+                else status.reminder_hex
+            )
+            if self.store.bottle_reminder_hex != now_on_bottle:
+                self.store.bottle_reminder_hex = now_on_bottle
+                self.hass.async_create_task(self.store.async_save())
         self.async_set_bottle(
             BottleStatus(
                 battery=status.battery,

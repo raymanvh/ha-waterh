@@ -46,10 +46,12 @@ from .protocol import (
     Other,
     Packet,
     RecalibrateReport,
+    ReminderSettings,
     SettingsAck,
     VitaStatus,
     clear_records,
     parse_packet,
+    set_reminder,
     set_today_total,
     sync_settings,
 )
@@ -102,6 +104,7 @@ class SessionResult:
     complete: bool = False
     cleared: int = 0
     settings_written: bool = False
+    reminder_written: bool = False
     total_written: int | None = None
     steps: list[str] = field(default_factory=list)
 
@@ -118,12 +121,15 @@ class BottleSession:
         update_bottle: bool,
         store_drinks: StoreDrinks,
         command_delay: float = 1.0,
+        reminder_hex: str | None = None,
     ) -> None:
         self._client = client
         self._now = now
         self._goal_ml = goal_ml
         self._update_bottle = update_bottle
         self._store_drinks = store_drinks
+        # Reminder chosen in Home Assistant (lowercase hex); None = keep the bottle's.
+        self._reminder_hex = reminder_hex.lower() if reminder_hex else None
         self._delay = command_delay
         self._packets: asyncio.Queue[Packet] = asyncio.Queue()
         self._write_with_response = True
@@ -238,10 +244,28 @@ class BottleSession:
         raise BottleSyncError("The bottle connected but didn't answer. It may have gone back to sleep.")
 
     async def _maybe_write_settings(self, status: BoostStatus) -> None:
+        """Set clock, goal and (if changed in Home Assistant) the reminder."""
+        bottle_reminder = status.reminder_hex
+        if bottle_reminder is not None:
+            current = ReminderSettings.from_hex(bottle_reminder)
+            self._step(f"reminder on bottle: {current.describe() if current else bottle_reminder}")
+        # A reminder chosen in Home Assistant; None means leave the bottle's as it is.
+        wanted_reminder = self._reminder_hex or bottle_reminder
+        reminder_changed = (
+            self._reminder_hex is not None
+            and bottle_reminder is not None
+            and self._reminder_hex != bottle_reminder
+        )
+
         if not self._update_bottle:
             self._step("bottle updates are off; not setting clock or goal")
+            if reminder_changed:
+                # A reminder change is an explicit request, so it's sent anyway, on its own.
+                await self._send(set_reminder(self._reminder_hex), self._reminder_label())
+                self.result.reminder_written = True
+                await self._wait_for((Other,), ACK_TIMEOUT_S)
             return
-        if status.reminder_hex is None:
+        if wanted_reminder is None:
             self._step("bottle didn't report its reminder settings; not setting clock or goal")
             return
         goal = self._goal_ml if self._goal_ml in GOAL_RANGE_ML else status.goal_ml
@@ -250,16 +274,32 @@ class BottleSession:
         now = self._now()
         bottle_time = status.clock.to_naive()
         drift = abs((bottle_time - now).total_seconds()) if bottle_time else None
-        if goal == status.goal_ml and drift is not None and drift <= CLOCK_TOLERANCE_S:
-            self._step(f"clock (off by {drift:.0f} s) and goal already right; not rewriting")
+        if (
+            goal == status.goal_ml
+            and not reminder_changed
+            and drift is not None
+            and drift <= CLOCK_TOLERANCE_S
+        ):
+            self._step(
+                f"clock (off by {drift:.0f} s), goal and reminder already right; not rewriting"
+            )
             return
-        label = "set clock" if goal == status.goal_ml else f"set clock, goal {status.goal_ml} → {goal} mL"
-        # Reminder settings are sent back unchanged.
-        await self._send(sync_settings(goal, now, status.reminder_hex), label)
+        parts = ["set clock"]
+        if goal != status.goal_ml:
+            parts.append(f"goal {status.goal_ml} → {goal} mL")
+        if reminder_changed:
+            parts.append(self._reminder_label())
+        # One command sets all three, as the official app does on every connect.
+        await self._send(sync_settings(goal, now, wanted_reminder), ", ".join(parts))
         self.result.settings_written = True
+        self.result.reminder_written = reminder_changed
         if await self._wait_for((SettingsAck,), SETTINGS_TIMEOUT_S) is None:
             # The official app carries on without the acknowledgement too.
-            self._step("no acknowledgement for clock/goal; carrying on")
+            self._step("no acknowledgement for clock/goal/reminder; carrying on")
+
+    def _reminder_label(self) -> str:
+        wanted = ReminderSettings.from_hex(self._reminder_hex)
+        return f"reminder → {wanted.describe() if wanted else self._reminder_hex}"
 
     async def _read_logs(self) -> bool:
         """Read stored records into the result. Returns True if the full list arrived."""

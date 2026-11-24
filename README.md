@@ -123,6 +123,9 @@ Bluetooth through Home Assistant only:
 | **Bluetooth sync** (diagnostic) | `Waiting for bottle`, `Syncing`, `OK`, `Not in range` or `Failed`. Attributes: `last_error` (why the last sync failed), `last_attempt`, `next_sync_after`, `via` (which adapter or proxy), `drinks_last_sync`, `cleared_last_sync`, and `steps` (what the last sync did, for troubleshooting). |
 | **Last Bluetooth sync** (diagnostic) | When the last successful sync finished. |
 | **Sync bottle now** | Syncs immediately, ignoring the interval. Shows an error if it can't. |
+| **Drink reminder** (configuration) | When the bottle's light ring reminds you to drink: **Off**, **Periodic** (every interval) or **Smart** (after an interval without drinking). See [Drink reminders](#drink-reminders). |
+| **Drink reminder interval** (configuration) | Minutes between reminders, 1–240. |
+| **Drink reminders start / end** (configuration) | The hours reminders are active, e.g. 09:00 to 22:00. The end can be after midnight. |
 | **Recalibrate bottle** (configuration) | Recalibrates the empty bottle in one press. **Configure → Recalibrate the bottle** walks you through it instead. See [Recalibrating the bottle](#recalibrating-the-bottle). |
 
 "Water today" uses WaterH's hydration value. For plain water it equals the volume; in account mode, other drink types may be weighted differently by WaterH, and the raw volume is in `liquid_total_ml`.
@@ -192,6 +195,25 @@ At least one of **Bluetooth bottle** and **Android app** has to be on.
 - **Update interval**: minutes between checks of your WaterH account (default 5). Drinks still only arrive once the official app has uploaded them.
 - **OAuth client ID / secret (advanced)**: leave empty. Only needed if WaterH changes the values built into their app. See [docs/API.md](docs/API.md#if-waterh-changes-their-app-credentials).
 - The webhook URL for the optional WaterH Sync battery sensors.
+
+## Drink reminders
+
+The bottle's light ring can remind you to drink. These settings live on the bottle itself, so they work without your phone or Home Assistant nearby. With Bluetooth through Home Assistant you can see and change them from Home Assistant instead of the official app.
+
+| Setting | What it does |
+| --- | --- |
+| **Drink reminder** | **Off**; **Periodic**: lights up every interval during active hours; **Smart**: lights up only if you haven't drunk from the bottle for an interval. |
+| **Drink reminder interval** | The interval, in minutes (1–240). The official app offers 15, 30, 45, 60, 90 and 120, plus custom values. |
+| **Drink reminders start / end** | When reminders are active each day. An end earlier than the start (e.g. 09:00 to 01:00) runs past midnight. |
+
+How it works:
+
+- Home Assistant reads the bottle's current reminder settings on every sync, so the entities show what the bottle actually has. They're unavailable until the bottle has synced once.
+- When you change one, it's written to the bottle on the next sync. If the bottle is in range that's straight away; otherwise it's when the bottle is next in range. Until then, the entities' `waiting_for_bottle` attribute is `true`.
+- Once you've changed a reminder setting in Home Assistant, Home Assistant keeps the bottle at that setting, like the daily goal. If you never change them here, the bottle's own settings are left alone.
+- They're normal entities, so automations can change them, for example Smart reminders on workdays and Off on weekends.
+
+The light ring's colour and effect can't be changed from Home Assistant yet.
 
 ## Recalibrating the bottle
 

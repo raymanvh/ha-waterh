@@ -329,6 +329,9 @@ class BottleBluetooth:
                 now=lambda: dt_util.now().replace(tzinfo=None),
                 goal_ml=self.coordinator.data.goal_ml if self.coordinator.data else None,
                 update_bottle=self.update_bottle,
+                reminder_hex=self.coordinator.store.reminder_hex
+                if self.coordinator.store
+                else None,
                 store_drinks=lambda records: self.coordinator.async_receive_bluetooth_records(
                     records, (ble_device.name or "waterh-bottle").lower()
                 ),
@@ -339,7 +342,9 @@ class BottleBluetooth:
                 self.last_result = session.result
                 if session.result.status is not None:
                     self.coordinator.async_set_bottle_from_status(
-                        session.result.status, session.result.total_written
+                        session.result.status,
+                        session.result.total_written,
+                        session.result.reminder_written,
                     )
         finally:
             try:

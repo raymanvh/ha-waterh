@@ -222,6 +222,14 @@
       },
       "quick_amount": {
         "name": "Drink amount"
+      },
+      "reminder_interval": {
+        "name": "Drink reminder interval",
+        "state_attributes": {
+          "waiting_for_bottle": {
+            "name": "Waiting for bottle"
+          }
+        }
       }
     },
     "select": {
@@ -242,6 +250,19 @@
           "ml": "Milliliters (mL)",
           "oz": "Fluid ounces (fl. oz.)"
         }
+      },
+      "reminder_mode": {
+        "name": "Drink reminder",
+        "state": {
+          "off": "Off",
+          "periodic": "Periodic: every interval",
+          "smart": "Smart: after an interval without drinking"
+        },
+        "state_attributes": {
+          "waiting_for_bottle": {
+            "name": "Waiting for bottle"
+          }
+        }
       }
     },
     "button": {
@@ -261,6 +282,24 @@
       },
       "in_range": {
         "name": "Bottle in range"
+      }
+    },
+    "time": {
+      "reminder_start": {
+        "name": "Drink reminders start",
+        "state_attributes": {
+          "waiting_for_bottle": {
+            "name": "Waiting for bottle"
+          }
+        }
+      },
+      "reminder_end": {
+        "name": "Drink reminders end",
+        "state_attributes": {
+          "waiting_for_bottle": {
+            "name": "Waiting for bottle"
+          }
+        }
       }
     }
   },
@@ -354,6 +393,9 @@
     },
     "recalibrate_failed": {
       "message": "Couldn't recalibrate the bottle: {error}"
+    },
+    "set_reminder_failed": {
+      "message": "Couldn't change the drink reminder: {error}"
     }
   }
 }
