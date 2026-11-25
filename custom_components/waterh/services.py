@@ -54,11 +54,7 @@ SET_REMINDER_LIGHT_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
         vol.Optional("effect"): vol.In(list(LIGHT_EFFECT_OPTIONS)),
-        vol.Exclusive("color", "colour"): vol.In(list(LIGHT_COLORS)),
-        # Experimental: any RGB; only the seven colours are what the official app sends.
-        vol.Exclusive("rgb_color", "colour"): vol.All(
-            vol.Length(min=3, max=3), [vol.All(vol.Coerce(int), vol.Range(min=0, max=255))]
-        ),
+        vol.Optional("color"): vol.In(list(LIGHT_COLORS)),
     }
 )
 
@@ -127,11 +123,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
     async def set_reminder_light(call: ServiceCall) -> None:
         entry = _get_entry(hass, call)
         coordinator = entry.runtime_data
-        rgb: str | None = None
-        if "color" in call.data:
-            rgb = LIGHT_COLORS[call.data["color"]]
-        elif "rgb_color" in call.data:
-            rgb = "".join(f"{v:02x}" for v in call.data["rgb_color"])
+        rgb = LIGHT_COLORS[call.data["color"]] if "color" in call.data else None
         try:
             if coordinator.ble is None:
                 raise WaterHError(

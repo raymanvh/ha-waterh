@@ -142,11 +142,30 @@ DEFAULT_LIGHT_EFFECT = "breathe"
 DEFAULT_LIGHT_COLOR = "blue"
 
 
+def shown_color(rgb_hex: str | None) -> str | None:
+    """The preset a colour actually shows as on the bottle.
+
+    Tested on a Boost: each RGB channel is simply on or off (#FF69B4 shows
+    white, #FF8000 yellow), so the ring can only show the seven presets.
+    """
+    if not rgb_hex or len(rgb_hex) != 6:
+        return None
+    on = tuple(int(rgb_hex[i : i + 2], 16) > 0 for i in (0, 2, 4))
+    return next(
+        (
+            name
+            for name, hex_ in LIGHT_COLORS.items()
+            if tuple(int(hex_[i : i + 2], 16) > 0 for i in (0, 2, 4)) == on
+        ),
+        None,
+    )
+
+
 def set_reminder_light(effect: str, rgb_hex: str) -> bytes:
     """Set the light ring's effect and colour (6 hex digits, e.g. LIGHT_COLORS["red"]).
 
-    The official app only sends the seven LIGHT_COLORS; whether the bottle
-    shows other RGB values is untested.
+    The ring treats each channel as on or off, so only the seven
+    LIGHT_COLORS (what the official app sends) are meaningful.
     """
     rgb = bytes.fromhex(rgb_hex)
     if len(rgb) != 3:

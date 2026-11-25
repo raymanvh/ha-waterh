@@ -284,9 +284,6 @@
         "state_attributes": {
           "waiting_for_bottle": {
             "name": "Waiting for bottle"
-          },
-          "rgb_color": {
-            "name": "RGB colour"
           }
         }
       },
@@ -304,9 +301,6 @@
         "state_attributes": {
           "waiting_for_bottle": {
             "name": "Waiting for bottle"
-          },
-          "rgb_color": {
-            "name": "RGB colour"
           }
         }
       }
@@ -452,10 +446,6 @@
         "color": {
           "name": "Colour",
           "description": "One of the official app's colours, for Breathe and Calm. Themes have their own colours."
-        },
-        "rgb_color": {
-          "name": "Custom colour (experimental)",
-          "description": "Any RGB colour instead of a preset. The official app only sends the presets; whether the bottle shows other colours is untested. Use either this or Colour."
         }
       }
     }

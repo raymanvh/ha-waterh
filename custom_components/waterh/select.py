@@ -22,6 +22,7 @@ from .protocol import (
     REMINDER_OFF,
     REMINDER_PERIODIC,
     REMINDER_SMART,
+    shown_color,
 )
 
 REMINDER_MODES = {"off": REMINDER_OFF, "periodic": REMINDER_PERIODIC, "smart": REMINDER_SMART}
@@ -55,11 +56,7 @@ class _WaterHLightSelect(WaterHReminderEntity, SelectEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, object]:
-        rgb = self.coordinator.light_rgb
-        return {
-            "waiting_for_bottle": self.coordinator.light_pending,
-            "rgb_color": f"#{rgb}" if rgb else None,
-        }
+        return {"waiting_for_bottle": self.coordinator.light_pending}
 
     async def _async_light(self, effect: str | None = None, rgb: str | None = None) -> None:
         try:
@@ -104,9 +101,9 @@ class WaterHLightColorSelect(_WaterHLightSelect):
 
     @property
     def current_option(self) -> str | None:
-        rgb = self.coordinator.light_rgb
-        # A custom colour (set with the action) isn't one of the options: unknown.
-        return next((name for name, hex_ in LIGHT_COLORS.items() if hex_ == rgb), None)
+        # What the ring shows (a colour stored by an earlier version may not be
+        # an exact preset, but the bottle only ever shows one of them).
+        return shown_color(self.coordinator.light_rgb)
 
     @property
     def available(self) -> bool:

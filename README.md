@@ -231,33 +231,20 @@ A new bottle's light is Breathe in blue. (The official app calls that "Default b
 How it works:
 
 - **The bottle can't report its light setting**, so both start as *unknown* and show what Home Assistant last set. If you never set them here, the bottle keeps whatever it had.
-- A change is sent on the next sync (straight away if the bottle is in range) and then not sent again. `waiting_for_bottle` is `true` until it's been sent.
+- A change is sent on the next sync (straight away if the bottle is in range) and then not sent again. `waiting_for_bottle` is `true` until it's been sent. When it arrives, the ring lights up briefly in the new setting.
 - If you set only one of the two, the other uses a new bottle's setting (Breathe, Blue).
 
-**Custom colours (experimental).** The command carries a plain RGB value, so the `waterh.set_reminder_light` action also takes any colour:
-
-```yaml
-action: waterh.set_reminder_light
-data:
-  effect: breathe
-  rgb_color: [255, 128, 0]
-```
-
-The official app only ever sends the seven colours above, so it's untested whether the bottle shows other colours, rounds them, or ignores them. The bottle can't be read back, so the only way to tell is to look at the ring. If you try one, please say what you see in an issue.
+**Only these seven colours.** The ring's red, green and blue are each simply on or off, so these seven are all it can show. (Tested on a Boost: sending pink `#FF69B4` showed white, and orange `#FF8000` showed yellow.)
 
 ## Experimental
 
-Features built from the official app's code that haven't been confirmed on a bottle yet. They're safe to try (they only send commands the official app sends itself), but what they do may not be exactly what's described. Feedback in an issue helps.
+Features with limited testing. They're safe to try (they only send commands the official app sends itself), but they've only been tried on one bottle. Feedback in an issue helps.
 
 ### Flash light ring
 
 **Flash light ring (experimental)** sends the official app's "control light" command, which the app sends when you tap the bottle on its bottle-details screen. On a Boost it **flashes the ring blue**, whatever reminder light effect and colour you've chosen, so it's handy for finding the bottle or checking Home Assistant can reach it. It doesn't preview your reminder light, and it doesn't change it: the next reminder still uses your effect and colour.
 
 If you've changed the [reminder light](#reminder-light) and that change hasn't reached the bottle yet, it's sent first. It doesn't read or clear drinks.
-
-### Custom reminder light colours
-
-See [Reminder light](#reminder-light): `waterh.set_reminder_light` accepts any `rgb_color`, but the official app only uses seven colours.
 
 ## Recalibrating the bottle
 
@@ -304,13 +291,12 @@ data:
 
 ### `waterh.set_reminder_light`
 
-Sets the reminder light (Bluetooth through Home Assistant). Same as the two **Reminder light** selects, plus an experimental custom colour. See [Reminder light](#reminder-light).
+Sets the reminder light (Bluetooth through Home Assistant), like the two **Reminder light** selects, e.g. from an automation. See [Reminder light](#reminder-light).
 
 | Field | Required | Description |
 | --- | --- | --- |
 | `effect` | no | `breathe`, `calm`, or a theme: `rainbow_pulse`, `warmth`, `christmas`. |
 | `color` | no | `red`, `yellow`, `green`, `cyan`, `blue`, `purple` or `white`. For `breathe` and `calm` only; with a theme it's an error. |
-| `rgb_color` | no | Any colour as `[r, g, b]` (experimental). Use this or `color`, not both. |
 | `config_entry_id` | no | Only needed with more than one WaterH entry. |
 
 ### `waterh.delete_drink`

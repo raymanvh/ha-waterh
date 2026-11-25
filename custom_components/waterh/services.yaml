@@ -74,6 +74,3 @@ set_reminder_light:
             - purple
             - white
           translation_key: light_color
-    rgb_color:
-      selector:
-        color_rgb:

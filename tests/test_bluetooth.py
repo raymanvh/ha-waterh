@@ -789,21 +789,19 @@ async def test_reminder_light(hass: HomeAssistant) -> None:
         assert await entry.runtime_data.ble.async_sync()
         assert bottle.timeline.count("light") == sent
 
-        # Experimental custom colour through the action.
+        # The action sets the same things.
         await hass.services.async_call(
-            DOMAIN, "set_reminder_light", {"rgb_color": [255, 128, 0]}, blocking=True
+            DOMAIN, "set_reminder_light", {"color": "cyan"}, blocking=True
         )
         await hass.async_block_till_done(wait_background_tasks=True)
-        assert bottle.light.hex() == "01ff8000"  # effect kept, new colour
-        colour = hass.states.get("select.waterh_bottle_reminder_light_colour")
-        assert colour.state == "unknown"  # not one of the presets
-        assert colour.attributes["rgb_color"] == "#ff8000"
+        assert bottle.light.hex() == "0100ffff"  # effect kept, new colour
+        assert hass.states.get("select.waterh_bottle_reminder_light_colour").state == "cyan"
 
         await hass.services.async_call(
             DOMAIN, "set_reminder_light", {"effect": "rainbow_pulse"}, blocking=True
         )
         await hass.async_block_till_done(wait_background_tasks=True)
-        assert bottle.light.hex() == "03ff8000"
+        assert bottle.light.hex() == "0300ffff"
         # A theme has its own colours: no colour choice while it's selected.
         colour = hass.states.get("select.waterh_bottle_reminder_light_colour")
         assert colour.state == "unavailable"
@@ -823,10 +821,15 @@ async def test_reminder_light(hass: HomeAssistant) -> None:
             DOMAIN, "set_reminder_light", {"effect": "calm"}, blocking=True
         )
         await hass.async_block_till_done(wait_background_tasks=True)
-        assert bottle.light.hex() == "02ff8000"
-        colour = hass.states.get("select.waterh_bottle_reminder_light_colour")
-        assert colour.state == "unknown"  # custom orange, not a preset
-        assert colour.attributes["rgb_color"] == "#ff8000"
+        assert bottle.light.hex() == "0200ffff"
+        assert hass.states.get("select.waterh_bottle_reminder_light_colour").state == "cyan"
+
+        # A non-preset colour stored by an earlier version shows as the preset
+        # the bottle actually displays (seen: #FF8000 shows yellow).
+        entry.runtime_data.store.light_rgb = "ff8000"
+        entry.runtime_data.async_update_listeners()
+        await hass.async_block_till_done()
+        assert hass.states.get("select.waterh_bottle_reminder_light_colour").state == "yellow"
     finally:
         for p in patches:
             p.stop()

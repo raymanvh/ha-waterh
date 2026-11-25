@@ -193,8 +193,14 @@ def test_reminder_light_matches_official_app() -> None:
     assert set(LIGHT_THEMES) == {"rainbow_pulse", "warmth", "christmas"}
     assert set_reminder_light("calm", c["purple"]).hex() == "5054000605fb02ff00ff"
     assert set_reminder_light("christmas", c["white"]).hex() == "5054000605fb06ffffff"
-    # Any RGB fits the format (untested on a bottle).
-    assert set_reminder_light("breathe", "ff8000").hex() == "5054000605fb01ff8000"
+    from custom_components.waterh.protocol import shown_color
+
+    # Seen on a Boost: each channel is on or off.
+    assert shown_color("ff69b4") == "white"
+    assert shown_color("ff8000") == "yellow"
+    assert shown_color("ff0000") == "red"
+    assert shown_color("000000") is None
+    assert shown_color(None) is None
     # Mode bytes from the app's WhenMappings (there is no 04).
     assert LIGHT_EFFECTS == {
         "default_blue": 0, "breathe": 1, "calm": 2, "rainbow_pulse": 3, "warmth": 5, "christmas": 6,
