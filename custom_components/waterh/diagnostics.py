@@ -86,6 +86,11 @@ async def async_get_config_entry_diagnostics(
                 else None,
                 "pending": coordinator.reminder_pending,
             },
+            "reminder_light": {
+                "effect": coordinator.light_effect,
+                "rgb": coordinator.light_rgb,
+                "pending": coordinator.light_pending,
+            },
             "last_attempt": ble.last_attempt.isoformat() if ble.last_attempt else None,
             "last_success": ble.last_success.isoformat() if ble.last_success else None,
             "last_error": ble.last_error,
@@ -96,6 +101,7 @@ async def async_get_config_entry_diagnostics(
                 "cleared": result.cleared,
                 "settings_written": result.settings_written,
                 "reminder_written": result.reminder_written,
+                "light_written": result.light_written,
                 "total_written": result.total_written,
                 "steps": result.steps,
             }

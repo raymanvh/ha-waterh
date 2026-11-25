@@ -5,14 +5,19 @@ from __future__ import annotations
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_VOLUME_UNIT, DRINK_TYPES, UNIT_AUTO, VOLUME_UNITS
+from .api import WaterHError
+from .const import CONF_VOLUME_UNIT, DOMAIN, DRINK_TYPES, UNIT_AUTO, VOLUME_UNITS
 from .coordinator import WaterHConfigEntry, WaterHCoordinator
 from .entity import WaterHReminderEntity, waterh_device_info
 from .protocol import (
+    LIGHT_COLORS,
+    LIGHT_EFFECTS,
+    LIGHT_EFFECTS_WITH_COLOR,
     REMINDER_INTERVALS,
     REMINDER_OFF,
     REMINDER_PERIODIC,
@@ -35,7 +40,83 @@ async def async_setup_entry(
     if entry.runtime_data.ble is not None:
         entities.append(WaterHReminderModeSelect(entry.runtime_data))
         entities.append(WaterHReminderIntervalSelect(entry.runtime_data))
+        entities.append(WaterHLightEffectSelect(entry.runtime_data))
+        entities.append(WaterHLightColorSelect(entry.runtime_data))
     async_add_entities(entities)
+
+
+class _WaterHLightSelect(WaterHReminderEntity, SelectEntity):
+    """Reminder light settings. The bottle can't report them, so these show what
+    Home Assistant last set, and are unknown until set here."""
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.ble is not None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        rgb = self.coordinator.light_rgb
+        return {
+            "waiting_for_bottle": self.coordinator.light_pending,
+            "rgb_color": f"#{rgb}" if rgb else None,
+        }
+
+    async def _async_light(self, effect: str | None = None, rgb: str | None = None) -> None:
+        try:
+            await self.coordinator.async_set_light(effect, rgb)
+        except WaterHError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="set_light_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+
+
+class WaterHLightEffectSelect(_WaterHLightSelect):
+    """How the light ring looks when it reminds you."""
+
+    _attr_icon = "mdi:led-strip-variant"
+
+    def __init__(self, coordinator: WaterHCoordinator) -> None:
+        super().__init__(coordinator, "light_effect")
+        self._attr_options = list(LIGHT_EFFECTS)
+
+    @property
+    def current_option(self) -> str | None:
+        return self.coordinator.light_effect
+
+    async def async_select_option(self, option: str) -> None:
+        await self._async_light(effect=option)
+
+
+class WaterHLightColorSelect(_WaterHLightSelect):
+    """Colour of the light ring. Only shows with the Breathe and Calm effects."""
+
+    _attr_icon = "mdi:palette"
+
+    def __init__(self, coordinator: WaterHCoordinator) -> None:
+        super().__init__(coordinator, "light_color")
+        self._attr_options = list(LIGHT_COLORS)
+
+    @property
+    def current_option(self) -> str | None:
+        rgb = self.coordinator.light_rgb
+        # A custom colour (set with the action) isn't one of the options: unknown.
+        return next((name for name, hex_ in LIGHT_COLORS.items() if hex_ == rgb), None)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        effect = self.coordinator.light_effect
+        return {
+            **super().extra_state_attributes,
+            # The other effects have their own colours.
+            "shown_with_current_effect": effect in LIGHT_EFFECTS_WITH_COLOR
+            if effect
+            else None,
+        }
+
+    async def async_select_option(self, option: str) -> None:
+        await self._async_light(rgb=LIGHT_COLORS[option])
 
 
 class WaterHReminderIntervalSelect(WaterHReminderEntity, SelectEntity):

@@ -83,6 +83,7 @@ DRINK_TYPES: Final = ["water", "coffee", "tea", "juice"]
 
 SERVICE_LOG_DRINK: Final = "log_drink"
 SERVICE_DELETE_DRINK: Final = "delete_drink"
+SERVICE_SET_REMINDER_LIGHT: Final = "set_reminder_light"
 ATTR_CONFIG_ENTRY_ID: Final = "config_entry_id"
 ATTR_AMOUNT: Final = "amount"
 ATTR_UNIT: Final = "unit"

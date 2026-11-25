@@ -126,6 +126,8 @@ Bluetooth through Home Assistant only:
 | **Drink reminder** (configuration) | When the bottle's light ring reminds you to drink: **Off**, **Periodic** (every interval) or **Smart** (after an interval without drinking). See [Drink reminders](#drink-reminders). |
 | **Drink reminder interval** (configuration) | 15, 30, 45, 60, 90 or 120 minutes, the values the bottle accepts. |
 | **Drink reminders start / end** (configuration) | The hours reminders are active, e.g. 09:00 to 22:00. The end can be after midnight. |
+| **Reminder light effect** (configuration) | How the light ring looks when it reminds you: Default blue, Breathe, Calm, Rainbow pulse, Warmth or Christmas. See [Reminder light](#reminder-light). |
+| **Reminder light colour** (configuration) | Red, Yellow, Green, Cyan, Blue, Purple or White. Only shows with **Breathe** and **Calm**. |
 | **Recalibrate bottle** (configuration) | Recalibrates the empty bottle in one press. **Configure → Recalibrate the bottle** walks you through it instead. See [Recalibrating the bottle](#recalibrating-the-bottle). |
 
 "Water today" uses WaterH's hydration value. For plain water it equals the volume; in account mode, other drink types may be weighted differently by WaterH, and the raw volume is in `liquid_total_ml`.
@@ -214,7 +216,31 @@ How it works:
 - Once you've changed a reminder setting in Home Assistant, Home Assistant keeps the bottle at that setting, like the daily goal. If you never change them here, the bottle's own settings are left alone.
 - They're normal entities, so automations can change them, for example Smart reminders on workdays and Off on weekends.
 
-The light ring's colour and effect can't be changed from Home Assistant yet.
+### Reminder light
+
+You can also choose how the ring looks when it reminds you, the same choices as the official app:
+
+| Setting | Options |
+| --- | --- |
+| **Reminder light effect** | Default blue, Breathe, Calm, Rainbow pulse, Warmth, Christmas |
+| **Reminder light colour** | Red, Yellow, Green, Cyan, Blue, Purple, White. As in the official app, the colour only shows with **Breathe** and **Calm**; the other effects have their own colours. The `shown_with_current_effect` attribute says whether it applies right now. |
+
+How it works:
+
+- **The bottle can't report its light setting**, so both start as *unknown* and show what Home Assistant last set. If you never set them here, the bottle keeps whatever it had.
+- A change is sent on the next sync (straight away if the bottle is in range) and then not sent again. `waiting_for_bottle` is `true` until it's been sent.
+- If you set only one of the two, the other uses the official app's default for a new bottle (Default blue, Blue).
+
+**Custom colours (experimental).** The command carries a plain RGB value, so the `waterh.set_reminder_light` action also takes any colour:
+
+```yaml
+action: waterh.set_reminder_light
+data:
+  effect: breathe
+  rgb_color: [255, 128, 0]
+```
+
+The official app only ever sends the seven colours above, so it's untested whether the bottle shows other colours, rounds them, or ignores them. The bottle can't be read back, so the only way to tell is to look at the ring. If you try one, please say what you see in an issue.
 
 ## Recalibrating the bottle
 
@@ -258,6 +284,17 @@ data:
   unit: oz
   drink_type: coffee
 ```
+
+### `waterh.set_reminder_light`
+
+Sets the reminder light (Bluetooth through Home Assistant). Same as the two **Reminder light** selects, plus an experimental custom colour. See [Reminder light](#reminder-light).
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `effect` | no | `default_blue`, `breathe`, `calm`, `rainbow_pulse`, `warmth` or `christmas`. |
+| `color` | no | `red`, `yellow`, `green`, `cyan`, `blue`, `purple` or `white`. |
+| `rgb_color` | no | Any colour as `[r, g, b]` (experimental). Use this or `color`, not both. |
+| `config_entry_id` | no | Only needed with more than one WaterH entry. |
 
 ### `waterh.delete_drink`
 

@@ -42,12 +42,20 @@ class LocalDrinkStore:
         # alone); bottle_reminder_hex is what the bottle last reported.
         self.reminder_hex: str | None = None
         self.bottle_reminder_hex: str | None = None
+        # Reminder light chosen in Home Assistant (the bottle doesn't report it):
+        # effect name and colour as RRGGBB hex; light_pending until it's been sent.
+        self.light_effect: str | None = None
+        self.light_rgb: str | None = None
+        self.light_pending = False
 
     async def async_load(self) -> None:
         data = await self._store.async_load() or {}
         self.goal_ml = int(data.get("goal_ml") or LOCAL_DEFAULT_GOAL_ML)
         self.reminder_hex = data.get("reminder_hex")
         self.bottle_reminder_hex = data.get("bottle_reminder_hex")
+        self.light_effect = data.get("light_effect")
+        self.light_rgb = data.get("light_rgb")
+        self.light_pending = bool(data.get("light_pending"))
         if last := data.get("last_report"):
             self.last_report = dt_util.parse_datetime(last)
         self.drinks = []
@@ -78,6 +86,9 @@ class LocalDrinkStore:
                 "goal_ml": self.goal_ml,
                 "reminder_hex": self.reminder_hex,
                 "bottle_reminder_hex": self.bottle_reminder_hex,
+                "light_effect": self.light_effect,
+                "light_rgb": self.light_rgb,
+                "light_pending": self.light_pending,
                 "last_report": self.last_report.isoformat() if self.last_report else None,
                 "drinks": [
                     {

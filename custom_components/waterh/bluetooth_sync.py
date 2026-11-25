@@ -329,6 +329,7 @@ class BottleBluetooth:
             raise BottleSyncError(error)
 
     async def _connect_and_run(self, ble_device) -> SessionResult:
+        light = self.coordinator.pending_light()
         client = await establish_connection(
             BleakClientWithServiceCache,
             ble_device,
@@ -344,6 +345,7 @@ class BottleBluetooth:
                 reminder_hex=self.coordinator.store.reminder_hex
                 if self.coordinator.store
                 else None,
+                light=light,
                 store_drinks=lambda records: self.coordinator.async_receive_bluetooth_records(
                     records, (ble_device.name or "waterh-bottle").lower()
                 ),
@@ -360,6 +362,8 @@ class BottleBluetooth:
                     )
                     if note:
                         session.result.steps.append(note)
+                if light is not None and session.result.light_written:
+                    self.coordinator.async_light_sent(light)
         finally:
             try:
                 await client.disconnect()

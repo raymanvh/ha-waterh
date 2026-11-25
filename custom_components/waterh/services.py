@@ -24,10 +24,12 @@ from .const import (
     GOAL_MAX_ML,
     SERVICE_DELETE_DRINK,
     SERVICE_LOG_DRINK,
+    SERVICE_SET_REMINDER_LIGHT,
     UNIT_ML,
     UNIT_OZ,
 )
 from .coordinator import WaterHConfigEntry
+from .protocol import LIGHT_COLORS, LIGHT_EFFECTS
 from .units import entry_unit, to_ml
 
 LOG_DRINK_SCHEMA = vol.Schema(
@@ -44,6 +46,19 @@ DELETE_DRINK_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
         vol.Required(ATTR_DRINK_ID): cv.string,
+    }
+)
+
+
+SET_REMINDER_LIGHT_SCHEMA = vol.Schema(
+    {
+        vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional("effect"): vol.In(list(LIGHT_EFFECTS)),
+        vol.Exclusive("color", "colour"): vol.In(list(LIGHT_COLORS)),
+        # Experimental: any RGB; only the seven colours are what the official app sends.
+        vol.Exclusive("rgb_color", "colour"): vol.All(
+            vol.Length(min=3, max=3), [vol.All(vol.Coerce(int), vol.Range(min=0, max=255))]
+        ),
     }
 )
 
@@ -109,8 +124,35 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 translation_placeholders={"error": str(err)},
             ) from err
 
+    async def set_reminder_light(call: ServiceCall) -> None:
+        entry = _get_entry(hass, call)
+        coordinator = entry.runtime_data
+        rgb: str | None = None
+        if "color" in call.data:
+            rgb = LIGHT_COLORS[call.data["color"]]
+        elif "rgb_color" in call.data:
+            rgb = "".join(f"{v:02x}" for v in call.data["rgb_color"])
+        try:
+            if coordinator.ble is None:
+                raise WaterHError(
+                    "The reminder light needs Bluetooth through Home Assistant."
+                )
+            await coordinator.async_set_light(call.data.get("effect"), rgb)
+        except WaterHError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="set_light_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+
     hass.services.async_register(
         DOMAIN, SERVICE_LOG_DRINK, log_drink, schema=LOG_DRINK_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_REMINDER_LIGHT,
+        set_reminder_light,
+        schema=SET_REMINDER_LIGHT_SCHEMA,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_DRINK, delete_drink, schema=DELETE_DRINK_SCHEMA

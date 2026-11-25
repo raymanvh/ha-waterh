@@ -52,6 +52,7 @@ from .protocol import (
     clear_records,
     parse_packet,
     set_reminder,
+    set_reminder_light,
     set_today_total,
     sync_settings,
 )
@@ -105,6 +106,7 @@ class SessionResult:
     cleared: int = 0
     settings_written: bool = False
     reminder_written: bool = False
+    light_written: bool = False
     total_written: int | None = None
     steps: list[str] = field(default_factory=list)
 
@@ -122,6 +124,7 @@ class BottleSession:
         store_drinks: StoreDrinks,
         command_delay: float = 1.0,
         reminder_hex: str | None = None,
+        light: tuple[str, str] | None = None,
     ) -> None:
         self._client = client
         self._now = now
@@ -130,6 +133,8 @@ class BottleSession:
         self._store_drinks = store_drinks
         # Reminder chosen in Home Assistant (lowercase hex); None = keep the bottle's.
         self._reminder_hex = reminder_hex.lower() if reminder_hex else None
+        # Reminder light (effect, RRGGBB) to send; None = no change.
+        self._light = light
         self._delay = command_delay
         self._packets: asyncio.Queue[Packet] = asyncio.Queue()
         self._write_with_response = True
@@ -174,6 +179,7 @@ class BottleSession:
         await self._start()
         status = await self._read_status()
         await self._maybe_write_settings(status)
+        await self._maybe_write_light()
         complete = await self._read_logs()
         await self._save_and_clear(status, complete)
         return self.result
@@ -296,6 +302,16 @@ class BottleSession:
         if await self._wait_for((SettingsAck,), SETTINGS_TIMEOUT_S) is None:
             # The official app carries on without the acknowledgement too.
             self._step("no acknowledgement for clock/goal/reminder; carrying on")
+
+    async def _maybe_write_light(self) -> None:
+        """Send a reminder light change made in Home Assistant (always, as it's explicit)."""
+        if self._light is None:
+            return
+        effect, rgb = self._light
+        await self._send(set_reminder_light(effect, rgb), f"reminder light → {effect}, #{rgb}")
+        self.result.light_written = True
+        # The bottle's reply to this isn't documented; give it a moment either way.
+        await self._wait_for((Other,), ACK_TIMEOUT_S)
 
     def _reminder_label(self) -> str:
         wanted = ReminderSettings.from_hex(self._reminder_hex)

@@ -31,7 +31,15 @@ from .const import (
     SOURCE_MANUAL,
 )
 from .local import LocalDrinkStore, bottle_drink_id
-from .protocol import BoostStatus, LogRecord, ReminderSettings
+from .protocol import (
+    DEFAULT_LIGHT_COLOR,
+    DEFAULT_LIGHT_EFFECT,
+    LIGHT_COLORS,
+    LIGHT_EFFECTS,
+    BoostStatus,
+    LogRecord,
+    ReminderSettings,
+)
 
 if TYPE_CHECKING:
     from .bluetooth_sync import BottleBluetooth
@@ -167,6 +175,63 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
             and self.store.reminder_hex
             and self.store.reminder_hex != self.store.bottle_reminder_hex
         )
+
+    @property
+    def light_effect(self) -> str | None:
+        return self.store.light_effect if self.store else None
+
+    @property
+    def light_rgb(self) -> str | None:
+        return self.store.light_rgb if self.store else None
+
+    @property
+    def light_pending(self) -> bool:
+        return bool(self.store and self.store.light_pending)
+
+    def pending_light(self) -> tuple[str, str] | None:
+        """(effect, RRGGBB) to send on the next sync, if changed in Home Assistant."""
+        if not self.store or not self.store.light_pending:
+            return None
+        return (
+            self.store.light_effect or DEFAULT_LIGHT_EFFECT,
+            self.store.light_rgb or LIGHT_COLORS[DEFAULT_LIGHT_COLOR],
+        )
+
+    async def async_set_light(
+        self, effect: str | None = None, rgb_hex: str | None = None
+    ) -> None:
+        """Change the reminder light; sent on the next Bluetooth sync.
+
+        Unset parts keep their current value, or the official app's defaults
+        (Default blue, blue) if never set.
+        """
+        if self.store is None:
+            raise WaterHError("The reminder light needs Bluetooth through Home Assistant.")
+        if effect is not None and effect not in LIGHT_EFFECTS:
+            raise WaterHError(f"Unknown light effect: {effect}")
+        if rgb_hex is not None:
+            rgb_hex = rgb_hex.lower().removeprefix("#")
+            if len(rgb_hex) != 6 or any(c not in "0123456789abcdef" for c in rgb_hex):
+                raise WaterHError("Colour must be RRGGBB, e.g. ff8000.")
+        store = self.store
+        store.light_effect = effect or store.light_effect or DEFAULT_LIGHT_EFFECT
+        store.light_rgb = rgb_hex or store.light_rgb or LIGHT_COLORS[DEFAULT_LIGHT_COLOR]
+        store.light_pending = True
+        await store.async_save()
+        self.async_update_listeners()
+        self._push_to_bottle_soon()
+
+    @callback
+    def async_light_sent(self, sent: tuple[str, str]) -> None:
+        """The bottle took the light command (it can't be read back, so this is final)."""
+        store = self.store
+        if store is None:
+            return
+        # A newer choice made while that sync ran stays pending.
+        if (store.light_effect, store.light_rgb) == sent:
+            store.light_pending = False
+            self.hass.async_create_task(store.async_save())
+        self.async_update_listeners()
 
     async def async_set_reminder(self, **changes: int) -> None:
         """Change reminder settings; written to the bottle on the next Bluetooth sync."""

@@ -72,6 +72,7 @@ class FakeBottle:
         self.timeline: list[str] = []
         # The reminder the bottle has (status field 38); starts as the real bottle's.
         self.reminder = bytes.fromhex("01090001003c")
+        self.light: bytes | None = None
         self._notify = None
         self.disconnected = False
         char = SimpleNamespace(properties=["write", "write-without-response"])
@@ -115,6 +116,10 @@ class FakeBottle:
             self.timeline.append("reminder")
             self._take_reminder(data[-6:])
             self._reply(bytes([0x52, 0x50, 0, 3, 2, 0x26, 0]))
+        elif data.startswith(bytes.fromhex("5054000605fb")):
+            self.timeline.append("light")
+            self.light = data[6:]
+            self._reply(bytes([0x52, 0x50, 0, 3, 2, 0xFB, 0]))
         elif data == REQUEST_RECALIBRATE_EMPTY:
             self.timeline.append("recalibrate")
             for code in self.recalibrate_codes:
@@ -741,6 +746,86 @@ async def test_reminder_needs_one_bottle_read_first(hass: HomeAssistant) -> None
     entry.runtime_data.store.bottle_reminder_hex = "01090001003c"
     with pytest.raises(WaterHError, match="only accepts reminder intervals"):
         await entry.runtime_data.async_set_reminder(interval_minutes=2)
+
+
+async def test_reminder_light(hass: HomeAssistant) -> None:
+    entry = await _create_bluetooth_entry(hass)
+    bottle = FakeBottle()
+    patches = _ble_patches(bottle, present=True)
+    for p in patches:
+        p.start()
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done(wait_background_tasks=True)
+        # The bottle can't report its light: unknown until set here, and nothing sent.
+        assert hass.states.get("select.waterh_bottle_reminder_light_effect").state == "unknown"
+        assert hass.states.get("select.waterh_bottle_reminder_light_colour").state == "unknown"
+        assert "light" not in bottle.timeline
+
+        await hass.services.async_call(
+            "select", "select_option",
+            {"entity_id": "select.waterh_bottle_reminder_light_effect", "option": "breathe"},
+            blocking=True,
+        )
+        await hass.services.async_call(
+            "select", "select_option",
+            {"entity_id": "select.waterh_bottle_reminder_light_colour", "option": "red"},
+            blocking=True,
+        )
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert bottle.light.hex() == "01ff0000"  # breathe, red
+        colour = hass.states.get("select.waterh_bottle_reminder_light_colour")
+        assert colour.state == "red"
+        assert colour.attributes["waiting_for_bottle"] is False
+        assert colour.attributes["shown_with_current_effect"] is True
+
+        # Sent once; not again on later syncs.
+        sent = bottle.timeline.count("light")
+        assert await entry.runtime_data.ble.async_sync()
+        assert bottle.timeline.count("light") == sent
+
+        # Experimental custom colour through the action.
+        await hass.services.async_call(
+            DOMAIN, "set_reminder_light", {"rgb_color": [255, 128, 0]}, blocking=True
+        )
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert bottle.light.hex() == "01ff8000"  # effect kept, new colour
+        colour = hass.states.get("select.waterh_bottle_reminder_light_colour")
+        assert colour.state == "unknown"  # not one of the presets
+        assert colour.attributes["rgb_color"] == "#ff8000"
+
+        await hass.services.async_call(
+            DOMAIN, "set_reminder_light", {"effect": "rainbow_pulse"}, blocking=True
+        )
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert bottle.light.hex() == "03ff8000"
+        colour = hass.states.get("select.waterh_bottle_reminder_light_colour")
+        assert colour.attributes["shown_with_current_effect"] is False
+    finally:
+        for p in patches:
+            p.stop()
+
+
+async def test_light_change_waits_for_the_bottle(hass: HomeAssistant) -> None:
+    entry = await _create_bluetooth_entry(hass)
+    patches = _ble_patches(FakeBottle(), present=False)
+    for p in patches:
+        p.start()
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+        await hass.services.async_call(
+            DOMAIN, "set_reminder_light", {"effect": "calm", "color": "green"}, blocking=True
+        )
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+    # Out of range: stays pending (and is kept across restarts in the store).
+    state = hass.states.get("select.waterh_bottle_reminder_light_effect")
+    assert state.state == "calm"
+    assert state.attributes["waiting_for_bottle"] is True
+    assert entry.runtime_data.store.light_pending is True
 
 
 async def test_failed_sync_is_reported(hass: HomeAssistant) -> None:

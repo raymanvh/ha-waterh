@@ -271,6 +271,48 @@
             "name": "Waiting for bottle"
           }
         }
+      },
+      "light_effect": {
+        "name": "Reminder light effect",
+        "state": {
+          "default_blue": "Default blue",
+          "breathe": "Breathe",
+          "calm": "Calm",
+          "rainbow_pulse": "Rainbow pulse",
+          "warmth": "Warmth",
+          "christmas": "Christmas"
+        },
+        "state_attributes": {
+          "waiting_for_bottle": {
+            "name": "Waiting for bottle"
+          },
+          "rgb_color": {
+            "name": "RGB colour"
+          }
+        }
+      },
+      "light_color": {
+        "name": "Reminder light colour",
+        "state": {
+          "red": "Red",
+          "yellow": "Yellow",
+          "green": "Green",
+          "cyan": "Cyan",
+          "blue": "Blue",
+          "purple": "Purple",
+          "white": "White"
+        },
+        "state_attributes": {
+          "waiting_for_bottle": {
+            "name": "Waiting for bottle"
+          },
+          "rgb_color": {
+            "name": "RGB colour"
+          },
+          "shown_with_current_effect": {
+            "name": "Shown with current effect"
+          }
+        }
       }
     },
     "button": {
@@ -333,6 +375,27 @@
         "tea": "Tea",
         "juice": "Juice"
       }
+    },
+    "light_effect": {
+      "options": {
+        "default_blue": "Default blue",
+        "breathe": "Breathe",
+        "calm": "Calm",
+        "rainbow_pulse": "Rainbow pulse",
+        "warmth": "Warmth",
+        "christmas": "Christmas"
+      }
+    },
+    "light_color": {
+      "options": {
+        "red": "Red",
+        "yellow": "Yellow",
+        "green": "Green",
+        "cyan": "Cyan",
+        "blue": "Blue",
+        "purple": "Purple",
+        "white": "White"
+      }
     }
   },
   "services": {
@@ -375,6 +438,28 @@
           "description": "ID of the log entry to remove."
         }
       }
+    },
+    "set_reminder_light": {
+      "name": "Set reminder light",
+      "description": "Sets the bottle's reminder light effect and colour (Bluetooth through Home Assistant). Sent on the next sync.",
+      "fields": {
+        "config_entry_id": {
+          "name": "WaterH entry",
+          "description": "Only needed if you have more than one WaterH entry set up."
+        },
+        "effect": {
+          "name": "Effect",
+          "description": "How the light ring looks when it reminds you."
+        },
+        "color": {
+          "name": "Colour",
+          "description": "One of the official app's colours. Only shows with the Breathe and Calm effects."
+        },
+        "rgb_color": {
+          "name": "Custom colour (experimental)",
+          "description": "Any RGB colour instead of a preset. The official app only sends the presets; whether the bottle shows other colours is untested. Use either this or Colour."
+        }
+      }
     }
   },
   "exceptions": {
@@ -404,6 +489,9 @@
     },
     "set_reminder_failed": {
       "message": "Couldn't change the drink reminder: {error}"
+    },
+    "set_light_failed": {
+      "message": "Couldn't change the reminder light: {error}"
     }
   }
 }

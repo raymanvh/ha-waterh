@@ -174,3 +174,25 @@ def test_reminder_settings() -> None:
     ):
         with pytest.raises(ValueError):
             bad.to_hex()
+
+
+def test_reminder_light_matches_official_app() -> None:
+    from custom_components.waterh.protocol import (
+        LIGHT_COLORS,
+        LIGHT_EFFECTS,
+        set_reminder_light,
+    )
+
+    # BottleConnection.requestReminderLight: "5054000605fb" + mode + colour.
+    c = LIGHT_COLORS
+    assert set_reminder_light("breathe", c["red"]).hex() == "5054000605fb01ff0000"
+    assert set_reminder_light("default_blue", c["blue"]).hex() == "5054000605fb000000ff"
+    assert set_reminder_light("calm", c["purple"]).hex() == "5054000605fb02ff00ff"
+    assert set_reminder_light("christmas", c["white"]).hex() == "5054000605fb06ffffff"
+    # Any RGB fits the format (untested on a bottle).
+    assert set_reminder_light("breathe", "ff8000").hex() == "5054000605fb01ff8000"
+    # Mode bytes from the app's WhenMappings (there is no 04).
+    assert LIGHT_EFFECTS == {
+        "default_blue": 0, "breathe": 1, "calm": 2, "rainbow_pulse": 3, "warmth": 5, "christmas": 6,
+    }
+    assert len(LIGHT_COLORS) == 7

@@ -45,3 +45,36 @@ delete_drink:
       example: "132700001"
       selector:
         text:
+
+set_reminder_light:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: waterh
+    effect:
+      selector:
+        select:
+          options:
+            - default_blue
+            - breathe
+            - calm
+            - rainbow_pulse
+            - warmth
+            - christmas
+          translation_key: light_effect
+    color:
+      selector:
+        select:
+          options:
+            - red
+            - yellow
+            - green
+            - cyan
+            - blue
+            - purple
+            - white
+          translation_key: light_color
+    rgb_color:
+      selector:
+        color_rgb:

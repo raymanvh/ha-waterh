@@ -111,6 +111,46 @@ def set_reminder(reminder_hex: str) -> bytes:
     return bytes.fromhex("505400080726" + reminder_hex)
 
 
+# Reminder light ring: effect and colour (official app: requestReminderLight).
+# Command 5054000605fb + effect (1 byte) + colour (3 bytes, RGB). The bottle
+# never reports which effect or colour it has.
+LIGHT_EFFECTS = {
+    "default_blue": 0x00,
+    "breathe": 0x01,
+    "calm": 0x02,
+    "rainbow_pulse": 0x03,
+    "warmth": 0x05,
+    "christmas": 0x06,
+}
+# The official app only shows a colour choice for these effects; the others
+# have their own colours (the app still sends the last colour picked).
+LIGHT_EFFECTS_WITH_COLOR = ("breathe", "calm")
+LIGHT_COLORS = {
+    "red": "ff0000",
+    "yellow": "ffff00",
+    "green": "00ff00",
+    "cyan": "00ffff",
+    "blue": "0000ff",
+    "purple": "ff00ff",
+    "white": "ffffff",
+}
+# The official app's defaults for a new bottle.
+DEFAULT_LIGHT_EFFECT = "default_blue"
+DEFAULT_LIGHT_COLOR = "blue"
+
+
+def set_reminder_light(effect: str, rgb_hex: str) -> bytes:
+    """Set the light ring's effect and colour (6 hex digits, e.g. LIGHT_COLORS["red"]).
+
+    The official app only sends the seven LIGHT_COLORS; whether the bottle
+    shows other RGB values is untested.
+    """
+    rgb = bytes.fromhex(rgb_hex)
+    if len(rgb) != 3:
+        raise ValueError("colour must be 3 bytes (RRGGBB)")
+    return bytes.fromhex("5054000605fb" + f"{LIGHT_EFFECTS[effect]:02x}") + rgb
+
+
 # Size of one stored record in a log reply.
 RECORD_SIZE = 13
 
