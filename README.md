@@ -128,6 +128,7 @@ Bluetooth through Home Assistant only:
 | **Drink reminders start / end** (configuration) | The hours reminders are active, e.g. 09:00 to 22:00. The end can be after midnight. |
 | **Reminder light effect** (configuration) | How the light ring looks when it reminds you: Default blue, Breathe, Calm, Rainbow pulse, Warmth or Christmas. See [Reminder light](#reminder-light). |
 | **Reminder light colour** (configuration) | Red, Yellow, Green, Cyan, Blue, Purple or White. Only shows with **Breathe** and **Calm**. |
+| **Flash light ring (experimental)** (configuration) | Asks the bottle to light its ring now. See [Experimental](#experimental). |
 | **Recalibrate bottle** (configuration) | Recalibrates the empty bottle in one press. **Configure → Recalibrate the bottle** walks you through it instead. See [Recalibrating the bottle](#recalibrating-the-bottle). |
 
 "Water today" uses WaterH's hydration value. For plain water it equals the volume; in account mode, other drink types may be weighted differently by WaterH, and the raw volume is in `liquid_total_ml`.
@@ -241,6 +242,20 @@ data:
 ```
 
 The official app only ever sends the seven colours above, so it's untested whether the bottle shows other colours, rounds them, or ignores them. The bottle can't be read back, so the only way to tell is to look at the ring. If you try one, please say what you see in an issue.
+
+## Experimental
+
+Features built from the official app's code that haven't been confirmed on a bottle yet. They're safe to try (they only send commands the official app sends itself), but what they do may not be exactly what's described. Feedback in an issue helps.
+
+### Flash light ring
+
+**Flash light ring (experimental)** sends the official app's "control light" command, which the app sends when you tap the bottle on its bottle-details screen. It most likely lights the ring, probably in your current reminder light effect and colour.
+
+If you've changed the [reminder light](#reminder-light) and that change hasn't reached the bottle yet, it's sent first, so this works as a quick preview, including of a custom colour. It doesn't read or clear drinks.
+
+### Custom reminder light colours
+
+See [Reminder light](#reminder-light): `waterh.set_reminder_light` accepts any `rgb_color`, but the official app only uses seven colours.
 
 ## Recalibrating the bottle
 

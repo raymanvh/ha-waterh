@@ -319,6 +319,64 @@ class BottleBluetooth:
             self.coordinator.async_set_bottle_from_status(status, None)
             self._recalibration_done(None)
 
+    async def async_flash_light(self) -> list[str]:
+        """Experimental: send the "control light" command (and any pending light change).
+
+        Returns the session steps. Raises BottleSyncError with a message for the user.
+        """
+        async with self._lock:
+            ble_device = bluetooth.async_ble_device_from_address(
+                self.hass, self.address, connectable=True
+            )
+            if ble_device is None:
+                raise BottleSyncError(
+                    "The bottle isn't in range of a Bluetooth adapter or proxy that can "
+                    "connect. Pick it up to wake it and try again."
+                )
+            light = self.coordinator.pending_light()
+            try:
+                async with asyncio.timeout(SESSION_TIMEOUT_S):
+                    client = await establish_connection(
+                        BleakClientWithServiceCache,
+                        ble_device,
+                        ble_device.name or "WaterH bottle",
+                        max_attempts=3,
+                    )
+                    try:
+                        session = BottleSession(
+                            client,
+                            now=lambda: dt_util.now().replace(tzinfo=None),
+                            goal_ml=None,
+                            update_bottle=False,
+                            store_drinks=_never_store,
+                            light=light,
+                        )
+                        await session.flash_light()
+                    finally:
+                        try:
+                            await client.disconnect()
+                        except Exception:
+                            _LOGGER.debug("Disconnect from WaterH bottle failed", exc_info=True)
+            except BottleSyncError:
+                raise
+            except BleakOutOfConnectionSlotsError as err:
+                raise BottleSyncError(
+                    "No Bluetooth adapter or proxy could connect to the bottle: it may be at "
+                    "the edge of range, or every adapter/proxy that can hear it is busy."
+                ) from err
+            except TimeoutError as err:
+                raise BottleSyncError("The bottle took too long to answer.") from err
+            except Exception as err:  # Bleak/proxy errors come in many types.
+                _LOGGER.debug("WaterH flash light failed", exc_info=True)
+                raise BottleSyncError(
+                    f"Couldn't connect to the bottle: {err or type(err).__name__}. "
+                    "Make sure no phone is connected to it."
+                ) from err
+            if light is not None and session.result.light_written:
+                self.coordinator.async_light_sent(light)
+            _LOGGER.debug("WaterH flash light: %s", session.result.steps)
+            return session.result.steps
+
     @callback
     def _recalibration_done(self, error: str | None) -> None:
         """Record the result; raises BottleSyncError when [error] is set."""

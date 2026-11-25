@@ -29,6 +29,7 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from .protocol import (
+    CONTROL_LIGHT,
     NOTIFY_CHAR,
     RECALIBRATE_FAILED,
     RECALIBRATE_STARTED,
@@ -219,6 +220,18 @@ class BottleSession:
                 "Leave it still on a flat surface and try again."
             )
         raise BottleSyncError("The bottle didn't respond to the recalibrate request.")
+
+    async def flash_light(self) -> None:
+        """Experimental: send the official app's "control light" command.
+
+        Any reminder light change made in Home Assistant goes first, so the
+        flash shows it.
+        """
+        await self._start()
+        await self._maybe_write_light()
+        await self._send(CONTROL_LIGHT, "flash light ring (experimental)")
+        reply = await self._wait_for((Other,), ACK_TIMEOUT_S)
+        self._step(f"bottle replied {reply.hex}" if isinstance(reply, Other) else "no reply")
 
     async def _start(self) -> None:
         services = self._client.services

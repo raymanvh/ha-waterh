@@ -28,6 +28,7 @@ async def async_setup_entry(
     if coordinator.ble is not None:
         entities.append(WaterHSyncNowButton(coordinator))
         entities.append(WaterHRecalibrateButton(coordinator))
+        entities.append(WaterHFlashLightButton(coordinator))
     async_add_entities(entities)
 
 
@@ -119,3 +120,38 @@ class WaterHRecalibrateButton(CoordinatorEntity[WaterHCoordinator], ButtonEntity
             title="WaterH bottle recalibrated",
             notification_id=f"{DOMAIN}_{self.coordinator.config_entry.entry_id}_recalibrated",
         )
+
+
+class WaterHFlashLightButton(CoordinatorEntity[WaterHCoordinator], ButtonEntity):
+    """Experimental: light the bottle's ring now.
+
+    Sends the official app's "control light" command (it sends it when you tap
+    the bottle on its bottle-details screen). Any reminder light change made
+    in Home Assistant is sent first, so this can preview it.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "flash_light"
+    _attr_icon = "mdi:lightbulb-on-outline"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator: WaterHCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.user_id}_flash_light"
+        self._attr_device_info = waterh_device_info(coordinator)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.ble is not None
+
+    async def async_press(self) -> None:
+        ble = self.coordinator.ble
+        assert ble is not None
+        try:
+            await ble.async_flash_light()
+        except BottleSyncError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="flash_light_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err

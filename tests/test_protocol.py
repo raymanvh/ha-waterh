@@ -196,3 +196,10 @@ def test_reminder_light_matches_official_app() -> None:
         "default_blue": 0, "breathe": 1, "calm": 2, "rainbow_pulse": 3, "warmth": 5, "christmas": 6,
     }
     assert len(LIGHT_COLORS) == 7
+
+
+def test_control_light_command() -> None:
+    from custom_components.waterh.protocol import CONTROL_LIGHT
+
+    # BottleConnection.requestControlLight in the official app.
+    assert CONTROL_LIGHT.hex() == "50540003021d01"

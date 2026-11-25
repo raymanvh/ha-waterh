@@ -120,6 +120,9 @@ class FakeBottle:
             self.timeline.append("light")
             self.light = data[6:]
             self._reply(bytes([0x52, 0x50, 0, 3, 2, 0xFB, 0]))
+        elif data == bytes.fromhex("50540003021d01"):
+            self.timeline.append("flash")
+            self._reply(bytes([0x52, 0x50, 0, 3, 2, 0x1D, 0]))
         elif data == REQUEST_RECALIBRATE_EMPTY:
             self.timeline.append("recalibrate")
             for code in self.recalibrate_codes:
@@ -804,6 +807,43 @@ async def test_reminder_light(hass: HomeAssistant) -> None:
     finally:
         for p in patches:
             p.stop()
+
+
+async def test_flash_light_button(hass: HomeAssistant) -> None:
+    entry = await _create_bluetooth_entry(hass)
+    bottle = FakeBottle()
+    patches = _ble_patches(bottle, present=False)
+    for p in patches:
+        p.start()
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+        # A light change made while the bottle was away...
+        await hass.services.async_call(
+            DOMAIN, "set_reminder_light", {"effect": "calm", "color": "green"}, blocking=True
+        )
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+    patches = _ble_patches(bottle, present=True)
+    for p in patches:
+        p.start()
+    try:
+        await hass.services.async_call(
+            "button", "press",
+            {"entity_id": "button.waterh_bottle_flash_light_ring_experimental"},
+            blocking=True,
+        )
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+    # ...is sent first, then the flash; nothing else (no drinks read or cleared).
+    assert bottle.timeline == ["light", "flash"]
+    assert bottle.light.hex() == "0200ff00"
+    assert bottle.disconnected
+    assert entry.runtime_data.store.light_pending is False
 
 
 async def test_light_change_waits_for_the_bottle(hass: HomeAssistant) -> None:

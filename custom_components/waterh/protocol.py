@@ -151,6 +151,11 @@ def set_reminder_light(effect: str, rgb_hex: str) -> bytes:
     return bytes.fromhex("5054000605fb" + f"{LIGHT_EFFECTS[effect]:02x}") + rgb
 
 
+# Experimental: "control light" (official app: requestControlLight), sent when
+# you tap the bottle in its bottle-details screen. Presumably lights the ring;
+# what exactly it shows hasn't been confirmed.
+CONTROL_LIGHT = bytes.fromhex("50540003021d01")
+
 # Size of one stored record in a log reply.
 RECORD_SIZE = 13
 
