@@ -224,8 +224,9 @@ class BottleSession:
     async def flash_light(self) -> None:
         """Experimental: send the official app's "control light" command.
 
-        Any reminder light change made in Home Assistant goes first, so the
-        flash shows it.
+        Tested on a Boost: the ring flashes blue regardless of the reminder
+        light setting, which it leaves unchanged. Any reminder light change
+        made in Home Assistant and not yet sent goes first.
         """
         await self._start()
         await self._maybe_write_light()

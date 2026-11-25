@@ -123,11 +123,13 @@ class WaterHRecalibrateButton(CoordinatorEntity[WaterHCoordinator], ButtonEntity
 
 
 class WaterHFlashLightButton(CoordinatorEntity[WaterHCoordinator], ButtonEntity):
-    """Experimental: light the bottle's ring now.
+    """Experimental: briefly light the bottle's ring, e.g. to find it.
 
     Sends the official app's "control light" command (it sends it when you tap
-    the bottle on its bottle-details screen). Any reminder light change made
-    in Home Assistant is sent first, so this can preview it.
+    the bottle on its bottle-details screen). On a real Boost the ring flashes
+    blue whatever the reminder light is set to, and the reminder light setting
+    is unchanged afterwards. Any reminder light change made in Home Assistant
+    and not yet sent goes first.
     """
 
     _attr_has_entity_name = True

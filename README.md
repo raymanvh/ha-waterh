@@ -128,7 +128,7 @@ Bluetooth through Home Assistant only:
 | **Drink reminders start / end** (configuration) | The hours reminders are active, e.g. 09:00 to 22:00. The end can be after midnight. |
 | **Reminder light effect** (configuration) | How the light ring looks when it reminds you: Default blue, Breathe, Calm, Rainbow pulse, Warmth or Christmas. See [Reminder light](#reminder-light). |
 | **Reminder light colour** (configuration) | Red, Yellow, Green, Cyan, Blue, Purple or White. Only shows with **Breathe** and **Calm**. |
-| **Flash light ring (experimental)** (configuration) | Asks the bottle to light its ring now. See [Experimental](#experimental). |
+| **Flash light ring (experimental)** (configuration) | Flashes the ring blue now, e.g. to find the bottle. Doesn't show or change your reminder light. See [Experimental](#experimental). |
 | **Recalibrate bottle** (configuration) | Recalibrates the empty bottle in one press. **Configure → Recalibrate the bottle** walks you through it instead. See [Recalibrating the bottle](#recalibrating-the-bottle). |
 
 "Water today" uses WaterH's hydration value. For plain water it equals the volume; in account mode, other drink types may be weighted differently by WaterH, and the raw volume is in `liquid_total_ml`.
@@ -249,9 +249,9 @@ Features built from the official app's code that haven't been confirmed on a bot
 
 ### Flash light ring
 
-**Flash light ring (experimental)** sends the official app's "control light" command, which the app sends when you tap the bottle on its bottle-details screen. It most likely lights the ring, probably in your current reminder light effect and colour.
+**Flash light ring (experimental)** sends the official app's "control light" command, which the app sends when you tap the bottle on its bottle-details screen. On a Boost it **flashes the ring blue**, whatever reminder light effect and colour you've chosen, so it's handy for finding the bottle or checking Home Assistant can reach it. It doesn't preview your reminder light, and it doesn't change it: the next reminder still uses your effect and colour.
 
-If you've changed the [reminder light](#reminder-light) and that change hasn't reached the bottle yet, it's sent first, so this works as a quick preview, including of a custom colour. It doesn't read or clear drinks.
+If you've changed the [reminder light](#reminder-light) and that change hasn't reached the bottle yet, it's sent first. It doesn't read or clear drinks.
 
 ### Custom reminder light colours
 
