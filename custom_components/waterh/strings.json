@@ -275,12 +275,12 @@
       "light_effect": {
         "name": "Reminder light effect",
         "state": {
-          "default_blue": "Default blue",
-          "breathe": "Breathe",
-          "calm": "Calm",
-          "rainbow_pulse": "Rainbow pulse",
-          "warmth": "Warmth",
-          "christmas": "Christmas"
+          "default_blue": "Default (blue breathing)",
+          "breathe": "Breathe (uses your colour)",
+          "calm": "Calm (uses your colour)",
+          "rainbow_pulse": "Rainbow pulse (own colours)",
+          "warmth": "Warmth (own colours)",
+          "christmas": "Christmas (own colours)"
         },
         "state_attributes": {
           "waiting_for_bottle": {
@@ -381,12 +381,12 @@
     },
     "light_effect": {
       "options": {
-        "default_blue": "Default blue",
-        "breathe": "Breathe",
-        "calm": "Calm",
-        "rainbow_pulse": "Rainbow pulse",
-        "warmth": "Warmth",
-        "christmas": "Christmas"
+        "default_blue": "Default (blue breathing)",
+        "breathe": "Breathe (uses your colour)",
+        "calm": "Calm (uses your colour)",
+        "rainbow_pulse": "Rainbow pulse (own colours)",
+        "warmth": "Warmth (own colours)",
+        "christmas": "Christmas (own colours)"
       }
     },
     "light_color": {
@@ -456,7 +456,7 @@
         },
         "color": {
           "name": "Colour",
-          "description": "One of the official app's colours. Only shows with the Breathe and Calm effects."
+          "description": "One of the official app's colours. Only Breathe and Calm use it; the other effects have their own colours."
         },
         "rgb_color": {
           "name": "Custom colour (experimental)",

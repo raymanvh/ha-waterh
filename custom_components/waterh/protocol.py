@@ -123,7 +123,9 @@ LIGHT_EFFECTS = {
     "christmas": 0x06,
 }
 # The official app only shows a colour choice for these effects; the others
-# have their own colours (the app still sends the last colour picked).
+# have their own colours and ignore it (seen on a Boost: default blue looks
+# like breathe in blue; rainbow pulse, warmth and christmas have their own).
+# The app still sends the last colour picked.
 LIGHT_EFFECTS_WITH_COLOR = ("breathe", "calm")
 LIGHT_COLORS = {
     "red": "ff0000",
