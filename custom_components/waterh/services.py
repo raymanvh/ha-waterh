@@ -29,7 +29,7 @@ from .const import (
     UNIT_OZ,
 )
 from .coordinator import WaterHConfigEntry
-from .protocol import LIGHT_COLORS, LIGHT_EFFECTS
+from .protocol import LIGHT_COLORS, LIGHT_EFFECT_OPTIONS
 from .units import entry_unit, to_ml
 
 LOG_DRINK_SCHEMA = vol.Schema(
@@ -53,7 +53,7 @@ DELETE_DRINK_SCHEMA = vol.Schema(
 SET_REMINDER_LIGHT_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
-        vol.Optional("effect"): vol.In(list(LIGHT_EFFECTS)),
+        vol.Optional("effect"): vol.In(list(LIGHT_EFFECT_OPTIONS)),
         vol.Exclusive("color", "colour"): vol.In(list(LIGHT_COLORS)),
         # Experimental: any RGB; only the seven colours are what the official app sends.
         vol.Exclusive("rgb_color", "colour"): vol.All(

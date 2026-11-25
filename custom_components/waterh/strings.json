@@ -275,12 +275,11 @@
       "light_effect": {
         "name": "Reminder light effect",
         "state": {
-          "default_blue": "Default (blue breathing)",
-          "breathe": "Breathe (uses your colour)",
-          "calm": "Calm (uses your colour)",
-          "rainbow_pulse": "Rainbow pulse (own colours)",
-          "warmth": "Warmth (own colours)",
-          "christmas": "Christmas (own colours)"
+          "breathe": "Breathe (your colour)",
+          "calm": "Calm (your colour)",
+          "rainbow_pulse": "Rainbow pulse (theme)",
+          "warmth": "Warmth (theme)",
+          "christmas": "Christmas (theme)"
         },
         "state_attributes": {
           "waiting_for_bottle": {
@@ -308,9 +307,6 @@
           },
           "rgb_color": {
             "name": "RGB colour"
-          },
-          "shown_with_current_effect": {
-            "name": "Shown with current effect"
           }
         }
       }
@@ -381,12 +377,11 @@
     },
     "light_effect": {
       "options": {
-        "default_blue": "Default (blue breathing)",
-        "breathe": "Breathe (uses your colour)",
-        "calm": "Calm (uses your colour)",
-        "rainbow_pulse": "Rainbow pulse (own colours)",
-        "warmth": "Warmth (own colours)",
-        "christmas": "Christmas (own colours)"
+        "breathe": "Breathe (your colour)",
+        "calm": "Calm (your colour)",
+        "rainbow_pulse": "Rainbow pulse (theme)",
+        "warmth": "Warmth (theme)",
+        "christmas": "Christmas (theme)"
       }
     },
     "light_color": {
@@ -452,11 +447,11 @@
         },
         "effect": {
           "name": "Effect",
-          "description": "How the light ring looks when it reminds you."
+          "description": "How the light ring looks when it reminds you: Breathe or Calm in your colour, or a theme with its own colours."
         },
         "color": {
           "name": "Colour",
-          "description": "One of the official app's colours. Only Breathe and Calm use it; the other effects have their own colours."
+          "description": "One of the official app's colours, for Breathe and Calm. Themes have their own colours."
         },
         "rgb_color": {
           "name": "Custom colour (experimental)",

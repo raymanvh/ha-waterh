@@ -56,7 +56,6 @@ set_reminder_light:
       selector:
         select:
           options:
-            - default_blue
             - breathe
             - calm
             - rainbow_pulse

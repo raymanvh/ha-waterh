@@ -16,8 +16,8 @@ from .coordinator import WaterHConfigEntry, WaterHCoordinator
 from .entity import WaterHReminderEntity, waterh_device_info
 from .protocol import (
     LIGHT_COLORS,
-    LIGHT_EFFECTS,
-    LIGHT_EFFECTS_WITH_COLOR,
+    LIGHT_EFFECT_OPTIONS,
+    LIGHT_THEMES,
     REMINDER_INTERVALS,
     REMINDER_OFF,
     REMINDER_PERIODIC,
@@ -79,7 +79,7 @@ class WaterHLightEffectSelect(_WaterHLightSelect):
 
     def __init__(self, coordinator: WaterHCoordinator) -> None:
         super().__init__(coordinator, "light_effect")
-        self._attr_options = list(LIGHT_EFFECTS)
+        self._attr_options = list(LIGHT_EFFECT_OPTIONS)
 
     @property
     def current_option(self) -> str | None:
@@ -90,7 +90,11 @@ class WaterHLightEffectSelect(_WaterHLightSelect):
 
 
 class WaterHLightColorSelect(_WaterHLightSelect):
-    """Colour of the light ring. Only shows with the Breathe and Calm effects."""
+    """Colour of the light ring, for Breathe and Calm.
+
+    Unavailable while a theme (rainbow pulse, warmth, christmas) is selected,
+    as themes have their own colours.
+    """
 
     _attr_icon = "mdi:palette"
 
@@ -105,15 +109,8 @@ class WaterHLightColorSelect(_WaterHLightSelect):
         return next((name for name, hex_ in LIGHT_COLORS.items() if hex_ == rgb), None)
 
     @property
-    def extra_state_attributes(self) -> dict[str, object]:
-        effect = self.coordinator.light_effect
-        return {
-            **super().extra_state_attributes,
-            # The other effects have their own colours.
-            "shown_with_current_effect": effect in LIGHT_EFFECTS_WITH_COLOR
-            if effect
-            else None,
-        }
+    def available(self) -> bool:
+        return super().available and self.coordinator.light_effect not in LIGHT_THEMES
 
     async def async_select_option(self, option: str) -> None:
         await self._async_light(rgb=LIGHT_COLORS[option])

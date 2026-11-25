@@ -187,6 +187,10 @@ def test_reminder_light_matches_official_app() -> None:
     c = LIGHT_COLORS
     assert set_reminder_light("breathe", c["red"]).hex() == "5054000605fb01ff0000"
     assert set_reminder_light("default_blue", c["blue"]).hex() == "5054000605fb000000ff"
+    from custom_components.waterh.protocol import LIGHT_EFFECT_OPTIONS, LIGHT_THEMES
+
+    assert "default_blue" not in LIGHT_EFFECT_OPTIONS  # looks like breathe + blue
+    assert set(LIGHT_THEMES) == {"rainbow_pulse", "warmth", "christmas"}
     assert set_reminder_light("calm", c["purple"]).hex() == "5054000605fb02ff00ff"
     assert set_reminder_light("christmas", c["white"]).hex() == "5054000605fb06ffffff"
     # Any RGB fits the format (untested on a bottle).

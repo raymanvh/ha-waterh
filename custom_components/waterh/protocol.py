@@ -122,11 +122,12 @@ LIGHT_EFFECTS = {
     "warmth": 0x05,
     "christmas": 0x06,
 }
-# The official app only shows a colour choice for these effects; the others
-# have their own colours and ignore it (seen on a Boost: default blue looks
-# like breathe in blue; rainbow pulse, warmth and christmas have their own).
-# The app still sends the last colour picked.
-LIGHT_EFFECTS_WITH_COLOR = ("breathe", "calm")
+# Effects offered in Home Assistant. "default_blue" is left out: on a Boost it
+# looks exactly like breathe in blue.
+LIGHT_EFFECT_OPTIONS = ("breathe", "calm", "rainbow_pulse", "warmth", "christmas")
+# Themes have their own colours and ignore the colour sent with them (seen on
+# a Boost); the official app only offers a colour for breathe and calm.
+LIGHT_THEMES = ("rainbow_pulse", "warmth", "christmas")
 LIGHT_COLORS = {
     "red": "ff0000",
     "yellow": "ffff00",
@@ -136,8 +137,8 @@ LIGHT_COLORS = {
     "purple": "ff00ff",
     "white": "ffffff",
 }
-# The official app's defaults for a new bottle.
-DEFAULT_LIGHT_EFFECT = "default_blue"
+# A new bottle's light (the official app's "default blue") is breathe in blue.
+DEFAULT_LIGHT_EFFECT = "breathe"
 DEFAULT_LIGHT_COLOR = "blue"
 
 

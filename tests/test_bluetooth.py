@@ -780,7 +780,9 @@ async def test_reminder_light(hass: HomeAssistant) -> None:
         colour = hass.states.get("select.waterh_bottle_reminder_light_colour")
         assert colour.state == "red"
         assert colour.attributes["waiting_for_bottle"] is False
-        assert colour.attributes["shown_with_current_effect"] is True
+        effect = hass.states.get("select.waterh_bottle_reminder_light_effect")
+        # Default blue isn't offered: it's breathe in blue.
+        assert "default_blue" not in effect.attributes["options"]
 
         # Sent once; not again on later syncs.
         sent = bottle.timeline.count("light")
@@ -802,8 +804,29 @@ async def test_reminder_light(hass: HomeAssistant) -> None:
         )
         await hass.async_block_till_done(wait_background_tasks=True)
         assert bottle.light.hex() == "03ff8000"
+        # A theme has its own colours: no colour choice while it's selected.
         colour = hass.states.get("select.waterh_bottle_reminder_light_colour")
-        assert colour.attributes["shown_with_current_effect"] is False
+        assert colour.state == "unavailable"
+        from homeassistant.exceptions import HomeAssistantError
+
+        with pytest.raises(HomeAssistantError, match="theme with its own colours"):
+            await hass.services.async_call(
+                DOMAIN, "set_reminder_light", {"color": "green"}, blocking=True
+            )
+        with pytest.raises(HomeAssistantError, match="theme with its own colours"):
+            await hass.services.async_call(
+                DOMAIN, "set_reminder_light",
+                {"effect": "warmth", "color": "green"}, blocking=True,
+            )
+        # Back to Calm: colour available again, and the last colour is kept.
+        await hass.services.async_call(
+            DOMAIN, "set_reminder_light", {"effect": "calm"}, blocking=True
+        )
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert bottle.light.hex() == "02ff8000"
+        colour = hass.states.get("select.waterh_bottle_reminder_light_colour")
+        assert colour.state == "unknown"  # custom orange, not a preset
+        assert colour.attributes["rgb_color"] == "#ff8000"
     finally:
         for p in patches:
             p.stop()
@@ -844,6 +867,25 @@ async def test_flash_light_button(hass: HomeAssistant) -> None:
     assert bottle.light.hex() == "0200ff00"
     assert bottle.disconnected
     assert entry.runtime_data.store.light_pending is False
+
+
+async def test_old_default_blue_shows_as_breathe_blue(hass: HomeAssistant) -> None:
+    entry = await _create_bluetooth_entry(hass)
+    patches = _ble_patches(FakeBottle(), present=False)
+    for p in patches:
+        p.start()
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+        store = entry.runtime_data.store
+        store.light_effect, store.light_rgb = "default_blue", "ff0000"
+        entry.runtime_data.async_update_listeners()
+        await hass.async_block_till_done()
+    finally:
+        for p in patches:
+            p.stop()
+    assert hass.states.get("select.waterh_bottle_reminder_light_effect").state == "breathe"
+    assert hass.states.get("select.waterh_bottle_reminder_light_colour").state == "blue"
 
 
 async def test_light_change_waits_for_the_bottle(hass: HomeAssistant) -> None:

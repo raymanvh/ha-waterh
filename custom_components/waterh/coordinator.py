@@ -35,7 +35,8 @@ from .protocol import (
     DEFAULT_LIGHT_COLOR,
     DEFAULT_LIGHT_EFFECT,
     LIGHT_COLORS,
-    LIGHT_EFFECTS,
+    LIGHT_EFFECT_OPTIONS,
+    LIGHT_THEMES,
     BoostStatus,
     LogRecord,
     ReminderSettings,
@@ -178,10 +179,14 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
 
     @property
     def light_effect(self) -> str | None:
-        return self.store.light_effect if self.store else None
+        effect = self.store.light_effect if self.store else None
+        # 0.6.0 betas offered "default blue", which is breathe in blue.
+        return DEFAULT_LIGHT_EFFECT if effect == "default_blue" else effect
 
     @property
     def light_rgb(self) -> str | None:
+        if self.store and self.store.light_effect == "default_blue":
+            return LIGHT_COLORS[DEFAULT_LIGHT_COLOR]
         return self.store.light_rgb if self.store else None
 
     @property
@@ -193,8 +198,8 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         if not self.store or not self.store.light_pending:
             return None
         return (
-            self.store.light_effect or DEFAULT_LIGHT_EFFECT,
-            self.store.light_rgb or LIGHT_COLORS[DEFAULT_LIGHT_COLOR],
+            self.light_effect or DEFAULT_LIGHT_EFFECT,
+            self.light_rgb or LIGHT_COLORS[DEFAULT_LIGHT_COLOR],
         )
 
     async def async_set_light(
@@ -202,20 +207,27 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
     ) -> None:
         """Change the reminder light; sent on the next Bluetooth sync.
 
-        Unset parts keep their current value, or the official app's defaults
-        (Default blue, blue) if never set.
+        Unset parts keep their current value, or breathe in blue (a new
+        bottle's light) if never set. Themes have their own colours, so a
+        colour can only be chosen with breathe or calm.
         """
         if self.store is None:
             raise WaterHError("The reminder light needs Bluetooth through Home Assistant.")
-        if effect is not None and effect not in LIGHT_EFFECTS:
+        if effect is not None and effect not in LIGHT_EFFECT_OPTIONS:
             raise WaterHError(f"Unknown light effect: {effect}")
+        new_effect = effect or self.light_effect or DEFAULT_LIGHT_EFFECT
+        if rgb_hex is not None and new_effect in LIGHT_THEMES:
+            raise WaterHError(
+                f"{new_effect.replace('_', ' ').capitalize()} is a theme with its own "
+                "colours. Choose Breathe or Calm to pick a colour."
+            )
         if rgb_hex is not None:
             rgb_hex = rgb_hex.lower().removeprefix("#")
             if len(rgb_hex) != 6 or any(c not in "0123456789abcdef" for c in rgb_hex):
                 raise WaterHError("Colour must be RRGGBB, e.g. ff8000.")
         store = self.store
-        store.light_effect = effect or store.light_effect or DEFAULT_LIGHT_EFFECT
-        store.light_rgb = rgb_hex or store.light_rgb or LIGHT_COLORS[DEFAULT_LIGHT_COLOR]
+        store.light_rgb = rgb_hex or self.light_rgb or LIGHT_COLORS[DEFAULT_LIGHT_COLOR]
+        store.light_effect = new_effect
         store.light_pending = True
         await store.async_save()
         self.async_update_listeners()

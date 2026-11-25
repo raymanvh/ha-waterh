@@ -126,8 +126,8 @@ Bluetooth through Home Assistant only:
 | **Drink reminder** (configuration) | When the bottle's light ring reminds you to drink: **Off**, **Periodic** (every interval) or **Smart** (after an interval without drinking). See [Drink reminders](#drink-reminders). |
 | **Drink reminder interval** (configuration) | 15, 30, 45, 60, 90 or 120 minutes, the values the bottle accepts. |
 | **Drink reminders start / end** (configuration) | The hours reminders are active, e.g. 09:00 to 22:00. The end can be after midnight. |
-| **Reminder light effect** (configuration) | How the light ring looks when it reminds you: Breathe or Calm in your colour, or Default (blue breathing), Rainbow pulse, Warmth or Christmas with their own colours. See [Reminder light](#reminder-light). |
-| **Reminder light colour** (configuration) | Red, Yellow, Green, Cyan, Blue, Purple or White. Used by **Breathe** and **Calm** only. |
+| **Reminder light effect** (configuration) | How the light ring looks when it reminds you: Breathe or Calm in your colour, or a theme with its own colours (Rainbow pulse, Warmth, Christmas). See [Reminder light](#reminder-light). |
+| **Reminder light colour** (configuration) | Red, Yellow, Green, Cyan, Blue, Purple or White, for **Breathe** and **Calm** (unavailable while a theme is selected). |
 | **Flash light ring (experimental)** (configuration) | Flashes the ring blue now, e.g. to find the bottle. Doesn't show or change your reminder light. See [Experimental](#experimental). |
 | **Recalibrate bottle** (configuration) | Recalibrates the empty bottle in one press. **Configure → Recalibrate the bottle** walks you through it instead. See [Recalibrating the bottle](#recalibrating-the-bottle). |
 
@@ -223,14 +223,16 @@ You can also choose how the ring looks when it reminds you, the same choices as 
 
 | Setting | Options |
 | --- | --- |
-| **Reminder light effect** | **Breathe** and **Calm** use your colour. **Default** is breathing in blue (the same as Breathe with Blue), whatever colour you pick. **Rainbow pulse**, **Warmth** and **Christmas** have their own colours. |
-| **Reminder light colour** | Red, Yellow, Green, Cyan, Blue, Purple, White. Only **Breathe** and **Calm** use it; with the other effects it's kept for later. The `shown_with_current_effect` attribute says whether it applies right now. |
+| **Reminder light effect** | **Breathe** or **Calm** in your colour, or a theme with its own colours: **Rainbow pulse**, **Warmth** or **Christmas**. |
+| **Reminder light colour** | Red, Yellow, Green, Cyan, Blue, Purple, White, for **Breathe** and **Calm**. Unavailable while a theme is selected; your last colour comes back when you switch to Breathe or Calm. |
+
+A new bottle's light is Breathe in blue. (The official app calls that "Default blue"; it isn't offered separately here because it looks the same as Breathe + Blue.)
 
 How it works:
 
 - **The bottle can't report its light setting**, so both start as *unknown* and show what Home Assistant last set. If you never set them here, the bottle keeps whatever it had.
 - A change is sent on the next sync (straight away if the bottle is in range) and then not sent again. `waiting_for_bottle` is `true` until it's been sent.
-- If you set only one of the two, the other uses the official app's default for a new bottle (Default, Blue).
+- If you set only one of the two, the other uses a new bottle's setting (Breathe, Blue).
 
 **Custom colours (experimental).** The command carries a plain RGB value, so the `waterh.set_reminder_light` action also takes any colour:
 
@@ -306,8 +308,8 @@ Sets the reminder light (Bluetooth through Home Assistant). Same as the two **Re
 
 | Field | Required | Description |
 | --- | --- | --- |
-| `effect` | no | `default_blue`, `breathe`, `calm`, `rainbow_pulse`, `warmth` or `christmas`. |
-| `color` | no | `red`, `yellow`, `green`, `cyan`, `blue`, `purple` or `white`. Only `breathe` and `calm` use it. |
+| `effect` | no | `breathe`, `calm`, or a theme: `rainbow_pulse`, `warmth`, `christmas`. |
+| `color` | no | `red`, `yellow`, `green`, `cyan`, `blue`, `purple` or `white`. For `breathe` and `calm` only; with a theme it's an error. |
 | `rgb_color` | no | Any colour as `[r, g, b]` (experimental). Use this or `color`, not both. |
 | `config_entry_id` | no | Only needed with more than one WaterH entry. |
 
