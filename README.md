@@ -165,7 +165,7 @@ entities:
 Use `stat_types: [change]` with `chart_type: bar` and `period: hour`, `day`, `week` or `month` for intake per hour, day, week or month.
 
 - **Hourly**: Home Assistant's long-term statistics can't be finer, so a drink at 10:40 counts in the 10:00–11:00 hour.
-- **Without an account**, the last 30 days are rebuilt from the stored drinks (on first install, that backfills them). **Account mode** sees today's drinks, so a drink that only reaches WaterH after midnight is missed for the day before.
+- **Without an account**, the last 30 days are rebuilt from the stored drinks (on first install, that backfills them). The statistic starts at your first drink, so days before it show no data rather than 0. **Account mode** sees today's drinks, so a drink that only reaches WaterH after midnight is missed for the day before.
 - Needs Home Assistant's recorder (on by default).
 
 #### Recent drinks sensor (exact times)

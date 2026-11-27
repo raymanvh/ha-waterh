@@ -274,3 +274,43 @@ async def test_recent_drinks_list_not_recorded(
     assert states[entity_id]
     assert all("drinks" not in s.attributes for s in states[entity_id])
     assert states[entity_id][-1].attributes["days"] == 7
+
+
+async def test_starts_at_first_drink(
+    hass: HomeAssistant, hass_client_no_auth, freezer: FrozenDateTimeFactory
+) -> None:
+    """Hours before the first drink have no rows (no data, not zero intake)."""
+    await hass.config.async_set_time_zone(TZ)
+    freezer.move_to("2026-11-26T18:32:00-06:00")
+    entry = await _setup_local(hass)
+    client = await hass_client_no_auth()
+    stat_id = intake_statistic_id(entry)
+
+    # Nothing written before any drink exists.
+    assert await _rows(hass, stat_id, "2026-10-01T00:00:00-05:00") == {}
+
+    await _post(hass, client, entry, [("2026-11-20T10:05:00-06:00", 120)])
+    rows = await _rows(hass, stat_id, "2026-10-01T00:00:00-05:00")
+    assert min(rows) == "11-20 09:00"  # the zero row just before the first drink
+    assert rows["11-20 10:00"]["change"] == 120
+
+    # A late sync brings an older drink: the start moves back to it.
+    await _post(hass, client, entry, [("2026-11-18T08:30:00-06:00", 200)])
+    rows = await _rows(hass, stat_id, "2026-10-01T00:00:00-05:00")
+    assert min(rows) == "11-18 07:00"
+    assert rows["11-18 08:00"]["change"] == 200
+    assert rows["11-20 10:00"]["change"] == 120
+    assert rows["11-26 18:00"]["sum"] == 320
+
+    # Deleting the first drink moves the start later: the zero rows before
+    # the new first drink are removed, not left behind as "0 oz" days.
+    drink_id = next(
+        d.id for d in entry.runtime_data.store.drinks if d.water_amount == 200
+    )
+    await hass.services.async_call(
+        "waterh", "delete_drink", {"drink_id": drink_id}, blocking=True
+    )
+    rows = await _rows(hass, stat_id, "2026-10-01T00:00:00-05:00")
+    assert min(rows) == "11-20 09:00"
+    assert rows["11-20 10:00"]["change"] == 120
+    assert rows["11-26 18:00"]["sum"] == 120

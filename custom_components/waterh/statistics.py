@@ -16,6 +16,12 @@ into hourly buckets (persisted here). Buckets inside the source's window
 drinks each time; older buckets are kept as they were. Buckets older than
 KEEP roll into ``base_ml``, the running total before ``base_hour``, so the
 cumulative sum never moves for hours already written.
+
+The statistic starts at the first drink: hours before it have no data, not
+zero intake, and charts should show them as empty. Until the first
+roll-over the start follows the earliest drink (a late sync can add older
+ones). If it moves later, rows already written before it are zeros with
+nothing behind them, so the statistic is cleared and rewritten.
 """
 
 from __future__ import annotations
@@ -96,6 +102,9 @@ class IntakeStatistics:
         self._buckets: dict[int, int] = {}
         # Whether the zero row before base_hour has been written.
         self._seeded = False
+        # Whether any hours have rolled into base_ml; until then base_hour
+        # follows the earliest drink.
+        self._frozen = False
         self._signature: tuple | None = None
         self._unit_checked: str | None = None
         self._lock = asyncio.Lock()
@@ -108,6 +117,7 @@ class IntakeStatistics:
         self._base_hour = data.get("base_hour")
         self._buckets = {int(h): int(ml) for h, ml in data.get("buckets", {}).items()}
         self._seeded = bool(data.get("seeded"))
+        self._frozen = bool(data.get("frozen"))
 
     async def async_remove(self) -> None:
         await self._store.async_remove()
@@ -158,9 +168,8 @@ class IntakeStatistics:
         now_hour = _floor_hour(now.timestamp())
         # Partly pruned hours stay as they were: start at the first whole hour.
         window_hour = _ceil_hour(window_start.timestamp())
-        if self._base_hour is None:
-            self._base_hour = min(window_hour, now_hour)
-        window_hour = max(window_hour, self._base_hour)
+        if self._frozen and self._base_hour is not None:
+            window_hour = max(window_hour, self._base_hour)
 
         buckets = {h: ml for h, ml in self._buckets.items() if h < window_hour}
         for drink in drinks:
@@ -171,18 +180,40 @@ class IntakeStatistics:
             buckets[hour] = buckets.get(hour, 0) + drink.water_amount
         buckets = {h: ml for h, ml in buckets.items() if ml}
 
-        base_ml, base_hour = self._base_ml, self._base_hour
+        base_ml, base_hour, frozen = self._base_ml, self._base_hour, self._frozen
+        clear = False
+        if not frozen:
+            if buckets:
+                first = min(buckets)
+                if self._seeded and base_hour is not None and first > base_hour:
+                    # Zero rows were written before the first drink (0.7.0 started
+                    # at the window, or the earliest drink was deleted).
+                    clear = True
+                base_hour = first
+            elif base_hour is None:
+                return  # No drinks yet: nothing to chart.
+
+        assert base_hour is not None
         frozen_before = _floor_hour((now - KEEP).timestamp())
         if frozen_before > base_hour:
             for hour in [h for h in buckets if h < frozen_before]:
                 base_ml += buckets.pop(hour)
             base_hour = frozen_before
+            frozen = True
 
         signature = (base_ml, base_hour, tuple(sorted(buckets.items())), now_hour, unit)
-        if signature == self._signature:
+        if signature == self._signature and not clear:
             return
 
+        if clear or (not frozen and base_hour != self._base_hour):
+            # A new start: write the zero row before it again.
+            self._seeded = False
+        if clear:
+            get_instance(self.hass).async_clear_statistics([self.statistic_id])
+            # Nothing left to convert to a new unit.
+            self._unit_checked = ha_unit(unit)
         self._base_ml, self._base_hour, self._buckets = base_ml, base_hour, buckets
+        self._frozen = frozen
         await self._async_write(now_hour, unit)
         self._seeded = True
         self._signature = signature
@@ -192,6 +223,7 @@ class IntakeStatistics:
                 "base_hour": self._base_hour,
                 "buckets": {str(h): ml for h, ml in sorted(self._buckets.items())},
                 "seeded": self._seeded,
+                "frozen": self._frozen,
             }
         )
 
