@@ -107,6 +107,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaterHConfigEntry) -> bo
         ent_reg.async_remove(old_interval)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    if "recorder" in hass.config.components:
+        # Hourly intake at the times drinks were taken, not when they synced.
+        from .statistics import IntakeStatistics
+
+        stats = IntakeStatistics(hass, entry, coordinator)
+        await stats.async_load()
+        entry.async_on_unload(coordinator.async_add_listener(stats.async_schedule))
+        stats.async_schedule()
+
     if coordinator.ble is not None:
         entry.async_on_unload(coordinator.ble.async_start())
 
@@ -157,3 +167,11 @@ def _cloud_coordinator(hass: HomeAssistant, entry: WaterHConfigEntry) -> WaterHC
 async def async_unload_entry(hass: HomeAssistant, entry: WaterHConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: WaterHConfigEntry) -> None:
+    """Remove the intake statistics' bookkeeping (the statistic itself stays in history)."""
+    if "recorder" in hass.config.components:
+        from .statistics import IntakeStatistics
+
+        await IntakeStatistics(hass, entry, None).async_remove()  # type: ignore[arg-type]

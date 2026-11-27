@@ -84,7 +84,7 @@ Some of these are limits of the bottle itself; others simply haven't been tested
 - **Drink times come from the bottle's clock**, which Home Assistant sets on each sync. If you turn off **Keep the bottle in step with Home Assistant**, the clock is no longer corrected and drink times can drift.
 - **Time zone.** The bottle's clock is local time, and Home Assistant uses its own time zone. When using the Android app as well, keep your phone and Home Assistant in the same time zone, or the same drink could be stored twice an hour apart.
 - **Tested bottle:** WaterH Boost (946 mL). Other models that use the same protocol should work, but haven't been tested. The Vita uses a different status format and isn't supported for Bluetooth or WaterH Sync yet.
-- **Drinks stay in Home Assistant.** Without a WaterH account nothing goes to WaterH, so the official app, and anything connected to your WaterH account, won't see them. Home Assistant keeps 30 days of individual drinks; long-term history is in Home Assistant's statistics, like any other sensor.
+- **Drinks stay in Home Assistant.** Without a WaterH account nothing goes to WaterH, so the official app, and anything connected to your WaterH account, won't see them. Home Assistant keeps 30 days of individual drinks; long-term history is in Home Assistant's statistics (see [Charting when you drank](#charting-when-you-drank)).
 - **Bottle drinks are recorded as water.** The bottle doesn't know what's in it. Use **Log drink** or the `waterh.log_drink` action for coffee, tea or juice.
 - **Switching between the WaterH account and the no-account modes** means adding a new entry. Drinks don't carry over between them. Switching between Bluetooth and the Android app (or using both) is just a setting on the same entry.
 
@@ -132,6 +132,34 @@ Bluetooth through Home Assistant only:
 | **Recalibrate bottle** (configuration) | Recalibrates the empty bottle in one press. **Configure → Recalibrate the bottle** walks you through it instead. See [Recalibrating the bottle](#recalibrating-the-bottle). |
 
 "Water today" uses WaterH's hydration value. For plain water it equals the volume; in account mode, other drink types may be weighted differently by WaterH, and the raw volume is in `liquid_total_ml`.
+
+### Charting when you drank
+
+Sensor history is recorded when Home Assistant *hears about* a drink, not when you took it. If the bottle syncs late (you were away from home, or the official app wasn't opened for a while), a History graph of **Water today** shows the whole afternoon as one jump at sync time.
+
+Every drink carries its own time, so the integration also keeps an hourly long-term statistic built from those times: **`waterh:water_intake_<entry id>`**, named *"&lt;entry title&gt; water intake"*. When a late drink arrives, the hour it was actually drunk is filled in and every later total moves up with it. It's in your display unit (switching units converts the stored history).
+
+Show it with a **Statistics graph** card (search for *water intake* when picking the entity):
+
+```yaml
+type: statistics-graph
+title: Water today
+chart_type: line
+period: hour
+days_to_show: 1
+stat_types:
+  - state   # today's running total, starting over at midnight
+entities:
+  - waterh:water_intake_01abc...   # your statistic id
+```
+
+Use `stat_types: [change]` with `chart_type: bar` and `period: hour`, `day` or `week` for intake per hour, day or week.
+
+Limits:
+
+- **Hourly resolution.** Home Assistant's long-term statistics are hourly, so a drink at 10:40 counts in the 10:00–11:00 hour.
+- **Local modes** rebuild the last 30 days from the stored drinks; on first install that backfills those 30 days. **Account mode** only sees today's drinks, so a drink from yesterday that only reaches WaterH after midnight is missed (as it is for *Water today*).
+- Needs Home Assistant's recorder (on by default).
 
 ## Installation
 

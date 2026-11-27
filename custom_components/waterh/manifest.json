@@ -1,7 +1,7 @@
 {
   "domain": "waterh",
   "name": "WaterH",
-  "after_dependencies": ["bluetooth"],
+  "after_dependencies": ["bluetooth", "recorder"],
   "bluetooth": [
     { "local_name": "WaterH*", "connectable": true },
     { "local_name": "WATERH*", "connectable": true },
@@ -17,5 +17,5 @@
   "issue_tracker": "https://github.com/raymanvh/ha-waterh/issues",
   "loggers": ["custom_components.waterh"],
   "requirements": [],
-  "version": "0.6.1"
+  "version": "0.7.0"
 }
