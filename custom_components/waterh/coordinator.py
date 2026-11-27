@@ -414,6 +414,33 @@ class WaterHCoordinator(DataUpdateCoordinator[WaterHData]):
         await self.async_receive_bottle_drinks(drinks)
         return self.data.total_ml if self.data else sum(d.water_amount for d in drinks)
 
+    async def async_get_drinks(self, start: datetime, end: datetime) -> list[WaterHDrink]:
+        """Drinks taken in [start, end), oldest first, at the times they were taken.
+
+        No-account modes: the drinks kept in Home Assistant (LOCAL_KEEP_DAYS).
+        Account mode: today's come from the last update; anything older is
+        fetched from WaterH.
+        """
+        if self.store is not None:
+            return self.store.drinks_between(start, end)
+        data = self.data
+        if data is not None and data.day_start is not None and start >= data.day_start:
+            return [d for d in data.drinks if start <= d.created < end]
+        assert self.client is not None
+        try:
+            drinks = await self.client.async_get_log(self.user_id, start, end)
+        except WaterHAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
+        return [d for d in drinks if start <= d.created < end]
+
+    def recent_drinks(self, days: int) -> list[WaterHDrink]:
+        """Drinks since local midnight [days - 1] days ago (account mode: today's)."""
+        if self.store is None:
+            return list(self.data.drinks) if self.data else []
+        first_day = dt_util.now().date() - timedelta(days=days - 1)
+        start = dt_util.start_of_local_day(first_day)
+        return [d for d in self.store.drinks if d.created >= start]
+
     @callback
     def _push_to_bottle_soon(self) -> None:
         """A local change (goal, manual drink): update the bottle now if it's in range."""

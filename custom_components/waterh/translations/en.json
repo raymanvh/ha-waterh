@@ -98,13 +98,15 @@
           "sync_interval": "Bluetooth sync interval",
           "update_bottle": "Keep the bottle in step with Home Assistant",
           "android_app": "Accept drinks from the WaterH Sync Android app",
-          "volume_unit": "Volume unit"
+          "volume_unit": "Volume unit",
+          "recent_days": "Days in the Recent drinks list"
         },
         "data_description": {
           "address": "The bottle Home Assistant syncs over Bluetooth, or Off.",
           "sync_interval": "How often to sync while the bottle is in range. Shorter means drinks show up sooner but the bottle wakes its radio more often, which uses a little more of its battery. 5 minutes is a good balance. Logging a drink or changing the goal in Home Assistant syncs right away.",
           "update_bottle": "Sets the bottle's clock, daily goal and today's total to Home Assistant's on each sync, so the bottle's display matches your dashboards. Turn off to only read drinks.",
-          "android_app": "Turn on if you also use the WaterH Sync app, e.g. to sync while away from home."
+          "android_app": "Turn on if you also use the WaterH Sync app, e.g. to sync while away from home.",
+          "recent_days": "How many days of individual drinks (today included) the Recent drinks sensor lists, for charts that show each drink at its exact time. More days means a bigger list sent to your dashboards on every update. It isn't stored in the database."
         }
       },
       "bluetooth_menu": {
@@ -214,6 +216,9 @@
       },
       "last_bluetooth_sync": {
         "name": "Last Bluetooth sync"
+      },
+      "recent_drinks": {
+        "name": "Recent drinks"
       }
     },
     "number": {
@@ -448,6 +453,24 @@
           "description": "One of the official app's colours, for Breathe and Calm. Themes have their own colours."
         }
       }
+    },
+    "get_drinks": {
+      "name": "Get drinks",
+      "description": "Returns individual drinks with the times they were taken, for scripts, automations and templates. Without an account, Home Assistant keeps the last 30 days; with a WaterH account, older drinks are fetched from WaterH.",
+      "fields": {
+        "config_entry_id": {
+          "name": "WaterH entry",
+          "description": "Only needed if you have more than one WaterH entry set up."
+        },
+        "start": {
+          "name": "Start",
+          "description": "First moment to include. Default: local midnight today."
+        },
+        "end": {
+          "name": "End",
+          "description": "Moment to stop at (not included). Default: no end, so every drink up to now."
+        }
+      }
     }
   },
   "exceptions": {
@@ -483,6 +506,12 @@
     },
     "flash_light_failed": {
       "message": "Couldn't flash the light ring: {error}"
+    },
+    "invalid_range": {
+      "message": "End must be after start."
+    },
+    "get_drinks_failed": {
+      "message": "Couldn't get drinks from WaterH: {error}"
     }
   }
 }

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from freezegun.api import FrozenDateTimeFactory
@@ -248,3 +248,29 @@ async def test_cloud_mode(
     assert rows["11-18 08:00"]["change"] == 300
     assert rows["11-18 09:00"]["sum"] == 1445
     assert rows["11-18 09:00"]["state"] == 300
+
+
+async def test_recent_drinks_list_not_recorded(
+    hass: HomeAssistant, hass_client_no_auth, freezer: FrozenDateTimeFactory
+) -> None:
+    """The per-drink list stays out of the database."""
+    from homeassistant.components.recorder.history import get_significant_states
+
+    await hass.config.async_set_time_zone(TZ)
+    freezer.move_to("2026-11-26T18:32:00-06:00")
+    entry = await _setup_local(hass)
+    client = await hass_client_no_auth()
+    await _post(hass, client, entry, [("2026-11-26T14:20:00-06:00", 300)])
+    await async_wait_recording_done(hass)
+    entity_id = "sensor.waterh_bottle_recent_drinks"
+    assert hass.states.get(entity_id).attributes["drinks"]
+    states = await get_instance(hass).async_add_executor_job(
+        get_significant_states,
+        hass,
+        dt_util.utcnow() - timedelta(hours=1),
+        None,
+        [entity_id],
+    )
+    assert states[entity_id]
+    assert all("drinks" not in s.attributes for s in states[entity_id])
+    assert states[entity_id][-1].attributes["days"] == 7

@@ -46,6 +46,7 @@ from .const import (
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
     CONF_MODE,
+    CONF_RECENT_DAYS,
     CONF_REFRESH_TOKEN,
     CONF_SCAN_INTERVAL,
     CONF_SYNC_INTERVAL,
@@ -55,9 +56,11 @@ from .const import (
     CONF_VOLUME_UNIT,
     DEFAULT_CLIENT_ID,
     DEFAULT_CLIENT_SECRET,
+    DEFAULT_RECENT_DAYS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SYNC_INTERVAL_MINUTES,
     DOMAIN,
+    LOCAL_KEEP_DAYS,
     MAX_SCAN_INTERVAL_MINUTES,
     MAX_SYNC_INTERVAL_MINUTES,
     MIN_SCAN_INTERVAL_MINUTES,
@@ -74,6 +77,7 @@ from .settings import (
     bottle_address,
     entry_mode,
     is_no_account,
+    recent_days,
     sync_interval,
     update_bottle,
 )
@@ -515,6 +519,9 @@ class WaterHOptionsFlow(OptionsFlow):
                         CONF_SYNC_INTERVAL: int(user_input[CONF_SYNC_INTERVAL]),
                         CONF_UPDATE_BOTTLE: bool(user_input.get(CONF_UPDATE_BOTTLE)),
                         CONF_VOLUME_UNIT: user_input.get(CONF_VOLUME_UNIT, UNIT_AUTO),
+                        CONF_RECENT_DAYS: int(
+                            user_input.get(CONF_RECENT_DAYS, DEFAULT_RECENT_DAYS)
+                        ),
                     }
                 )
 
@@ -564,6 +571,17 @@ class WaterHOptionsFlow(OptionsFlow):
                         options=[u for u in VOLUME_UNITS if u != UNIT_APP],
                         mode=SelectSelectorMode.DROPDOWN,
                         translation_key=CONF_VOLUME_UNIT,
+                    )
+                ),
+                vol.Required(
+                    CONF_RECENT_DAYS, default=recent_days(entry)
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=1,
+                        max=LOCAL_KEEP_DAYS,
+                        step=1,
+                        unit_of_measurement="days",
+                        mode=NumberSelectorMode.BOX,
                     )
                 ),
             }

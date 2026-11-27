@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+    callback,
+)
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
@@ -17,12 +23,15 @@ from .const import (
     ATTR_CONFIG_ENTRY_ID,
     ATTR_DRINK_ID,
     ATTR_DRINK_TYPE,
+    ATTR_END,
+    ATTR_START,
     ATTR_TIME,
     ATTR_UNIT,
     DOMAIN,
     DRINK_TYPES,
     GOAL_MAX_ML,
     SERVICE_DELETE_DRINK,
+    SERVICE_GET_DRINKS,
     SERVICE_LOG_DRINK,
     SERVICE_SET_REMINDER_LIGHT,
     UNIT_ML,
@@ -30,7 +39,8 @@ from .const import (
 )
 from .coordinator import WaterHConfigEntry
 from .protocol import LIGHT_COLORS, LIGHT_EFFECT_OPTIONS
-from .units import entry_unit, to_ml
+from .records import drink_record
+from .units import entry_unit, from_ml, ha_unit, to_ml
 
 LOG_DRINK_SCHEMA = vol.Schema(
     {
@@ -48,6 +58,20 @@ DELETE_DRINK_SCHEMA = vol.Schema(
         vol.Required(ATTR_DRINK_ID): cv.string,
     }
 )
+
+GET_DRINKS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional(ATTR_START): cv.datetime,
+        vol.Optional(ATTR_END): cv.datetime,
+    }
+)
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=dt_util.get_default_time_zone())
+    return value
 
 
 SET_REMINDER_LIGHT_SCHEMA = vol.Schema(
@@ -120,6 +144,35 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 translation_placeholders={"error": str(err)},
             ) from err
 
+    async def get_drinks(call: ServiceCall) -> ServiceResponse:
+        entry = _get_entry(hass, call)
+        coordinator = entry.runtime_data
+        start = _aware(call.data.get(ATTR_START)) or dt_util.start_of_local_day()
+        # Default end includes drinks a bottle clock running slightly ahead put in the future.
+        end = _aware(call.data.get(ATTR_END)) or dt_util.now() + timedelta(days=1)
+        if end <= start:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="invalid_range"
+            )
+        try:
+            drinks = await coordinator.async_get_drinks(start, end)
+        except WaterHError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="get_drinks_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        unit = entry_unit(hass, entry)
+        total_ml = sum(d.water_amount for d in drinks)
+        return {
+            "start": dt_util.as_local(start).isoformat(),
+            "end": dt_util.as_local(end).isoformat(),
+            "unit": ha_unit(unit),
+            "total": from_ml(total_ml, unit),
+            "total_ml": total_ml,
+            "drinks": [drink_record(d, unit) for d in drinks],
+        }
+
     async def set_reminder_light(call: ServiceCall) -> None:
         entry = _get_entry(hass, call)
         coordinator = entry.runtime_data
@@ -148,4 +201,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_DRINK, delete_drink, schema=DELETE_DRINK_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_DRINKS,
+        get_drinks,
+        schema=GET_DRINKS_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
     )

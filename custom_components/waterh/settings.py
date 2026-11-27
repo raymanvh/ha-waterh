@@ -10,8 +10,10 @@ from .const import (
     CONF_ANDROID_APP,
     CONF_BOTTLE_ADDRESS,
     CONF_MODE,
+    CONF_RECENT_DAYS,
     CONF_SYNC_INTERVAL,
     CONF_UPDATE_BOTTLE,
+    DEFAULT_RECENT_DAYS,
     DEFAULT_SYNC_INTERVAL_MINUTES,
     MODE_CLOUD,
     MODE_LOCAL,
@@ -58,3 +60,10 @@ def sync_interval(entry: ConfigEntry) -> timedelta:
 
 def update_bottle(entry: ConfigEntry) -> bool:
     return bool(entry.options.get(CONF_UPDATE_BOTTLE, True))
+
+
+def recent_days(entry: ConfigEntry) -> int:
+    """Days listed on the Recent drinks sensor (account mode only has today's)."""
+    if not is_no_account(entry):
+        return 1
+    return int(entry.options.get(CONF_RECENT_DAYS, DEFAULT_RECENT_DAYS))

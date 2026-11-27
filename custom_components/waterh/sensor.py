@@ -28,7 +28,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import CONF_APP_REPORTED, CONF_VOLUME_UNIT, SYNC_STATUSES, UNIT_AUTO
 from .coordinator import BottleStatus, WaterHConfigEntry, WaterHCoordinator, WaterHData
 from .entity import waterh_device_info
-from .units import ha_unit, resolve_unit
+from .records import drink_record
+from .settings import recent_days
+from .units import entry_unit, ha_unit, resolve_unit
 
 if TYPE_CHECKING:
     # Imported only for typing: Bluetooth libraries load only when Bluetooth sync is used.
@@ -146,6 +148,7 @@ async def async_setup_entry(
     async_add_entities(
         WaterHSensor(coordinator, description, option) for description in SENSORS
     )
+    async_add_entities([WaterHRecentDrinksSensor(coordinator)])
     if coordinator.ble is not None:
         async_add_entities(
             WaterHBluetoothSensor(coordinator, description)
@@ -226,6 +229,43 @@ class WaterHSensor(CoordinatorEntity[WaterHCoordinator], SensorEntity):
         if self.entity_description.attrs_fn is None:
             return None
         return self.entity_description.attrs_fn(self.coordinator.data)
+
+
+class WaterHRecentDrinksSensor(CoordinatorEntity[WaterHCoordinator], SensorEntity):
+    """Each recent drink at the time it was taken, for charts with exact times.
+
+    State: how many drinks are listed. The list itself (attribute ``drinks``)
+    isn't written to the recorder: it would repeat every drink in the
+    database on each change, and history wouldn't add anything the list
+    doesn't already have.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "recent_drinks"
+    _attr_icon = "mdi:format-list-bulleted"
+    _unrecorded_attributes = frozenset({"drinks"})
+
+    def __init__(self, coordinator: WaterHCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.user_id}_recent_drinks"
+        self._attr_device_info = waterh_device_info(coordinator)
+        self._days = recent_days(coordinator.config_entry)
+
+    def _drinks(self) -> list:
+        return self.coordinator.recent_drinks(self._days)
+
+    @property
+    def native_value(self) -> int:
+        return len(self._drinks())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        unit = entry_unit(self.hass, self.coordinator.config_entry)
+        return {
+            "days": self._days,
+            "unit": ha_unit(unit),
+            "drinks": [drink_record(d, unit) for d in self._drinks()],
+        }
 
 
 @dataclass(frozen=True, kw_only=True)

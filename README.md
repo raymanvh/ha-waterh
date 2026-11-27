@@ -99,6 +99,7 @@ Every mode gets these:
 | **Drinks today** | Number of drinks today. |
 | **Last drink** | Size of the most recent drink. Attributes: `drink_id`, `source` (`manual` or the bottle model), `water_type`, `liquid_amount_ml`, `temperature`. |
 | **Last drink time** | When the most recent drink was taken. |
+| **Recent drinks** | How many drinks are listed in its `drinks` attribute: each drink with the time it was taken (`time`, `amount` in your unit, `ml`, `type`, `source`). Covers the last 7 days by default (setting below); account mode lists today's. The list isn't saved to the database. See [Charting when you drank](#charting-when-you-drank). |
 | **Last water temperature** | Water temperature reported by the bottle (°C, disabled by default). |
 | **Last update** (diagnostic) | Account mode: when Home Assistant last checked WaterH. Without an account: when the bottle was last read (by Home Assistant or the app). |
 | **Daily goal** | Your daily goal. Account mode: changes it in the WaterH app. Without an account: kept in Home Assistant and written to the bottle on the next sync. |
@@ -135,11 +136,19 @@ Bluetooth through Home Assistant only:
 
 ### Charting when you drank
 
-Sensor history is recorded when Home Assistant *hears about* a drink, not when you took it. If the bottle syncs late (you were away from home, or the official app wasn't opened for a while), a History graph of **Water today** shows the whole afternoon as one jump at sync time.
+Sensor history is recorded when Home Assistant *hears about* a drink, not when you took it. With Bluetooth through Home Assistant, the bottle only syncs when it's home, so a day out (or a week away) arrives in one go: a History graph of **Water today** shows it as one jump at sync time, and drinks from earlier days never show up in those days at all.
 
-Every drink carries its own time, so the integration also keeps an hourly long-term statistic built from those times: **`waterh:water_intake_<entry id>`**, named *"&lt;entry title&gt; water intake"*. When a late drink arrives, the hour it was actually drunk is filled in and every later total moves up with it. It's in your display unit (switching units converts the stored history).
+Every drink is stored with the time it was taken, so there are three ways to chart that instead. Use whichever suits you, or several:
 
-Show it with a **Statistics graph** card (search for *water intake* when picking the entity):
+| | Resolution | How far back | Card |
+| --- | --- | --- | --- |
+| **Intake statistic** | Hourly | Forever (Home Assistant's long-term statistics) | Built-in **Statistics graph** |
+| **Recent drinks** sensor | Exact time of each drink | 1–30 days (setting) | [ApexCharts card](https://github.com/RomRider/apexcharts-card) (HACS) |
+| **`waterh.get_drinks`** action | Exact | 30 days (account mode: your whole WaterH history) | Scripts, automations, templates |
+
+#### Intake statistic (hourly, long-term)
+
+The integration keeps an hourly long-term statistic built from the drinks' own times: **`waterh:water_intake_<entry id>`**, named *"&lt;entry title&gt; water intake"*. When drinks arrive late, the hours they were drunk are filled in and every later total moves up with them. It's in your display unit (switching units converts the stored history).
 
 ```yaml
 type: statistics-graph
@@ -150,16 +159,76 @@ days_to_show: 1
 stat_types:
   - state   # today's running total, starting over at midnight
 entities:
-  - waterh:water_intake_01abc...   # your statistic id
+  - waterh:water_intake_01abc...   # your statistic id: search "water intake" in the card editor
 ```
 
-Use `stat_types: [change]` with `chart_type: bar` and `period: hour`, `day` or `week` for intake per hour, day or week.
+Use `stat_types: [change]` with `chart_type: bar` and `period: hour`, `day`, `week` or `month` for intake per hour, day, week or month.
 
-Limits:
-
-- **Hourly resolution.** Home Assistant's long-term statistics are hourly, so a drink at 10:40 counts in the 10:00–11:00 hour.
-- **Local modes** rebuild the last 30 days from the stored drinks; on first install that backfills those 30 days. **Account mode** only sees today's drinks, so a drink from yesterday that only reaches WaterH after midnight is missed (as it is for *Water today*).
+- **Hourly**: Home Assistant's long-term statistics can't be finer, so a drink at 10:40 counts in the 10:00–11:00 hour.
+- **Without an account**, the last 30 days are rebuilt from the stored drinks (on first install, that backfills them). **Account mode** sees today's drinks, so a drink that only reaches WaterH after midnight is missed for the day before.
 - Needs Home Assistant's recorder (on by default).
+
+#### Recent drinks sensor (exact times)
+
+The **Recent drinks** sensor's `drinks` attribute lists every drink of the last few days with the time it was taken, oldest first:
+
+```yaml
+drinks:
+  - id: bottle-1795724405-300
+    time: "2026-11-26T14:20:05-06:00"
+    amount: 10.1        # your display unit (see the unit attribute)
+    ml: 300
+    type: water
+    source: bottle      # or manual
+```
+
+Built-in cards can't plot an attribute list, so use [ApexCharts card](https://github.com/RomRider/apexcharts-card) with a `data_generator`. Today's running total, stepping up at the exact time of each drink:
+
+```yaml
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Water today
+graph_span: 24h
+span:
+  start: day
+series:
+  - entity: sensor.waterh_bottle_recent_drinks
+    name: Water
+    curve: stepline
+    data_generator: |
+      const from = new Date(start).getTime();
+      const to = Math.min(new Date(end).getTime(), Date.now());
+      let total = 0;
+      const points = [[from, 0]];
+      for (const d of entity.attributes.drinks) {
+        const t = new Date(d.time).getTime();
+        if (t < from || t > to) continue;
+        total += d.amount;
+        points.push([t, total]);
+      }
+      points.push([to, total]);
+      return points;
+```
+
+Each drink of the last week as its own bar:
+
+```yaml
+type: custom:apexcharts-card
+graph_span: 7d
+series:
+  - entity: sensor.waterh_bottle_recent_drinks
+    name: Drinks
+    type: column
+    data_generator: |
+      return entity.attributes.drinks.map((d) => [new Date(d.time).getTime(), d.amount]);
+```
+
+The list only covers the days set in **Days in the Recent drinks list**, and it's sent to your dashboards on every update, so keep it to the days you actually chart. It isn't written to the database.
+
+#### `waterh.get_drinks` action
+
+Returns drinks with their times for any range (see [Actions](#waterhget_drinks)), for scripts, automations, template sensors or sending elsewhere.
 
 ## Installation
 
@@ -217,6 +286,7 @@ Keep the webhook URL private: anyone who has it can add drinks.
 | **Keep the bottle in step with Home Assistant** | On | Sets the bottle's clock, daily goal and today's total on each sync. Off = only read drinks (they're still cleared from the bottle once saved). |
 | **Accept drinks from the WaterH Sync Android app** | Off (Bluetooth entries) / On (app entries) | Opens the webhook for WaterH Sync. The URL is shown on this screen. |
 | **Volume unit** | Automatic | Automatic (Home Assistant's unit system), mL or fl. oz. |
+| **Days in the Recent drinks list** | 7 | Days of individual drinks (today included, 1–30) on the **Recent drinks** sensor. More days means a bigger list sent to dashboards on each update; it isn't stored in the database. |
 
 At least one of **Bluetooth bottle** and **Android app** has to be on.
 
@@ -336,6 +406,38 @@ action: waterh.delete_drink
 data:
   drink_id: "{{ state_attr('sensor.waterh_bottle_last_drink', 'drink_id') }}"
 ```
+
+### `waterh.get_drinks`
+
+Returns individual drinks with the times they were taken. Without an account, Home Assistant keeps the last 30 days; in account mode, drinks before today are fetched from WaterH. Both fields are optional: `start` defaults to local midnight today, `end` (not included) to no end. Times without a time zone are Home Assistant's.
+
+```yaml
+action: waterh.get_drinks
+data:
+  start: "{{ today_at() - timedelta(days=1) }}"
+  end: "{{ today_at() }}"
+response_variable: yesterday
+```
+
+Response:
+
+```yaml
+start: "2026-11-25T00:00:00-06:00"
+end: "2026-11-26T00:00:00-06:00"
+unit: fl. oz.
+total: 64.2
+total_ml: 1899
+drinks:
+  - id: bottle-1795622705-120
+    time: "2026-11-25T10:05:05-06:00"
+    amount: 4.1
+    ml: 120
+    type: water
+    source: bottle
+  # ...
+```
+
+For example `{{ yesterday.total }}`, or `{{ yesterday.drinks | selectattr('source', 'eq', 'manual') | list | count }}` for how many drinks were logged by hand.
 
 ## Example automation
 

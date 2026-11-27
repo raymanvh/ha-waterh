@@ -66,6 +66,9 @@ MAX_SYNC_INTERVAL_MINUTES: Final = 60
 CONF_UPDATE_BOTTLE: Final = "update_bottle"
 # Accept drinks from the WaterH Sync Android app too (webhook).
 CONF_ANDROID_APP: Final = "android_app"
+# Days of individual drinks listed on the Recent drinks sensor (no-account modes).
+CONF_RECENT_DAYS: Final = "recent_days"
+DEFAULT_RECENT_DAYS: Final = 7
 # Local mode: goal until the user sets one, and how long drinks are kept on disk.
 LOCAL_DEFAULT_GOAL_ML: Final = 2000
 LOCAL_KEEP_DAYS: Final = 30
@@ -84,12 +87,15 @@ DRINK_TYPES: Final = ["water", "coffee", "tea", "juice"]
 SERVICE_LOG_DRINK: Final = "log_drink"
 SERVICE_DELETE_DRINK: Final = "delete_drink"
 SERVICE_SET_REMINDER_LIGHT: Final = "set_reminder_light"
+SERVICE_GET_DRINKS: Final = "get_drinks"
 ATTR_CONFIG_ENTRY_ID: Final = "config_entry_id"
 ATTR_AMOUNT: Final = "amount"
 ATTR_UNIT: Final = "unit"
 ATTR_DRINK_TYPE: Final = "drink_type"
 ATTR_TIME: Final = "time"
 ATTR_DRINK_ID: Final = "drink_id"
+ATTR_START: Final = "start"
+ATTR_END: Final = "end"
 
 # Goal limits accepted by the integration (mL). Sanity bounds, not WaterH's.
 GOAL_MIN_ML: Final = 500

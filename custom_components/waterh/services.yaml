@@ -74,3 +74,16 @@ set_reminder_light:
             - purple
             - white
           translation_key: light_color
+
+get_drinks:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: waterh
+    start:
+      selector:
+        datetime:
+    end:
+      selector:
+        datetime:
